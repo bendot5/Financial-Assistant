@@ -1,0 +1,36 @@
+{
+  "name": "financial-assistant",
+  "version": "1.0.0",
+  "description": "AI-powered WhatsApp bot for personal and shared financial tracking",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:reset": "prisma migrate reset"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@hapi/boom": "^10.0.1",
+    "@prisma/client": "^5.22.0",
+    "@whiskeysockets/baileys": "^6.7.0",
+    "dotenv": "^16.4.7",
+    "node-cron": "^3.0.3",
+    "pino": "^9.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/node-cron": "^3.0.11",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

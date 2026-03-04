@@ -1,0 +1,54 @@
+// Prisma schema for FinancialAssistant
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Household ───────────────────────────────────────────────────────────────
+// A shared "wallet" — one or more members (phones) track expenses together.
+model Household {
+  id            String        @id @default(cuid())
+  name          String?
+  inviteCode    String        @unique
+  monthlyIncome Float         @default(0)
+  budgetLimit   Float         @default(0)
+  members       Member[]
+  transactions  Transaction[]
+  createdAt     DateTime      @default(now())
+}
+
+// ─── Member ──────────────────────────────────────────────────────────────────
+// Represents a WhatsApp user identified by their phone number.
+// onboardingStep tracks the conversational state machine:
+//   WELCOME → INVITE_PROMPT → INCOME → BUDGET → COMPLETE
+model Member {
+  id             String     @id @default(cuid())
+  phone          String     @unique
+  name           String?
+  householdId    String?
+  household      Household? @relation(fields: [householdId], references: [id])
+  onboardingStep String     @default("WELCOME")
+  pendingIncome  Float?     // Temporary storage between INCOME and BUDGET steps
+  createdAt      DateTime   @default(now())
+}
+
+// ─── Transaction ─────────────────────────────────────────────────────────────
+// A single expense or income event logged by a member.
+// type: "EXPENSE" | "INCOME"
+model Transaction {
+  id          String    @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id])
+  memberPhone String
+  type        String    // "EXPENSE" | "INCOME"
+  amount      Float
+  category    String
+  description String
+  createdAt   DateTime  @default(now())
+}
