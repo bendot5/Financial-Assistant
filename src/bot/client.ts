@@ -7,6 +7,7 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
+import qrcode from 'qrcode-terminal';
 
 // Suppress Baileys' verbose internal logging
 const logger = pino({ level: 'silent' });
@@ -20,7 +21,7 @@ export type MessageHandler = (phone: string, text: string) => Promise<void>;
 
 /**
  * Starts the Baileys WhatsApp connection and registers the message handler.
- * Prints a QR code in the terminal on first run — scan with WhatsApp to link.
+ * On first run, renders a QR code in the terminal via qrcode-terminal — scan with WhatsApp to link.
  * Auto-reconnects on disconnection unless the user explicitly logged out.
  */
 export async function startBot(onMessage: MessageHandler): Promise<WASocket> {
@@ -36,7 +37,6 @@ export async function startBot(onMessage: MessageHandler): Promise<WASocket> {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, logger),
     },
-    printQRInTerminal: true,
     browser: ['FinancialAssistant', 'Chrome', '124.0.0'],
     // Required for message history decryption in multi-device
     getMessage: async () => undefined,
@@ -45,7 +45,11 @@ export async function startBot(onMessage: MessageHandler): Promise<WASocket> {
   // Persist updated credentials (session tokens) whenever they change
   socket.ev.on('creds.update', saveCreds);
 
-  socket.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+  socket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+    if (qr) {
+      console.log('\n[Baileys] Scan the QR code below with WhatsApp (Linked Devices → Link a Device):\n');
+      qrcode.generate(qr, { small: true });
+    }
     if (connection === 'connecting') {
       console.log('[Baileys] Connecting to WhatsApp...');
     } else if (connection === 'open') {
