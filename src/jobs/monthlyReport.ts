@@ -1,23 +1,20 @@
 import cron from 'node-cron';
 import { prisma } from '../db/prisma.js';
-import { buildMonthlyReport } from '../services/reportService.js';
-import { sendWhatsAppMessage } from '../bot/client.js';
+import { getMonthlyReportData } from '../services/reportService.js';
+import { sendPushNotifications } from '../lib/expoPush.js';
 
 /**
  * Schedules a cron job that runs at 9:00 AM on the 1st of every month.
- * It builds a monthly summary for each household and sends it via WhatsApp
- * to every fully-onboarded member.
- *
+ * Sends a push notification to every onboarded member who has a push token.
  * The report covers the PREVIOUS month (e.g. running Feb 1 → reports on January).
  */
 export function startMonthlyReportJob(): void {
   cron.schedule('0 9 1 * *', async () => {
     console.log('[CronJob] Monthly report job started.');
 
-    // Compute the previous month (handles January → December of prior year)
     const now = new Date();
     const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const reportMonth = prevMonth.getMonth() + 1; // convert to 1-indexed
+    const reportMonth = prevMonth.getMonth() + 1;
     const reportYear = prevMonth.getFullYear();
 
     const label = prevMonth.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -25,29 +22,37 @@ export function startMonthlyReportJob(): void {
 
     const households = await prisma.household.findMany({
       include: {
-        // Only include members who completed onboarding
-        members: { where: { onboardingStep: 'COMPLETE' } },
+        members: {
+          where: { onboardingStep: 'COMPLETE', pushToken: { not: null } },
+        },
       },
     });
 
     for (const household of households) {
       if (household.members.length === 0) continue;
 
-      const report = await buildMonthlyReport(household.id, reportYear, reportMonth);
-      if (!report) continue;
+      const data = await getMonthlyReportData(household.id, reportYear, reportMonth);
+      if (!data) continue;
 
-      for (const member of household.members) {
-        try {
-          await sendWhatsAppMessage(member.phone, report);
-          console.log(`[CronJob] Sent report to ${member.phone}`);
-        } catch (err) {
-          console.error(`[CronJob] Failed to send to ${member.phone}:`, err);
-        }
-      }
+      const tokens = household.members.map((m) => m.pushToken).filter(Boolean) as string[];
+      if (tokens.length === 0) continue;
+
+      const budgetLine =
+        data.budgetUsedPct > 100
+          ? `Over budget by $${Math.abs(data.remaining).toFixed(0)}!`
+          : `$${data.remaining.toFixed(0)} remaining of $${data.budgetLimit.toFixed(0)}`;
+
+      await sendPushNotifications(tokens, {
+        title: `📊 ${data.monthName} ${data.year} Summary`,
+        body: `Spent $${data.totalExpenses.toFixed(0)} (${data.budgetUsedPct}%) — ${budgetLine}`,
+        data: { screen: '/reports', month: reportMonth, year: reportYear },
+      });
+
+      console.log(`[CronJob] Notified ${tokens.length} member(s) in household "${household.name}"`);
     }
 
     console.log('[CronJob] Monthly report job completed.');
   });
 
-  console.log('[CronJob] Scheduled: monthly summary on the 1st of each month at 09:00.');
+  console.log('[CronJob] Scheduled: monthly push notification on the 1st at 09:00.');
 }

@@ -29,6 +29,7 @@ export async function updateMember(
     householdId?: string | null;
     onboardingStep?: string;
     pendingIncome?: number | null;
+    pushToken?: string | null;
   },
 ) {
   return prisma.member.update({
@@ -36,6 +37,33 @@ export async function updateMember(
     data,
     include: { household: true },
   });
+}
+
+/** Look up a member by their Firebase UID (used in API route handlers). */
+export async function getMemberByFirebaseUid(uid: string) {
+  return prisma.member.findUnique({
+    where: { firebaseUid: uid },
+    include: { household: true },
+  });
+}
+
+/**
+ * Creates a new member for the given phone + Firebase UID if they don't exist,
+ * or links the Firebase UID to an existing member record.
+ * Returns the member and whether they were just created.
+ */
+export async function upsertMemberByPhone(phone: string, firebaseUid: string) {
+  const existing = await prisma.member.findUnique({ where: { phone } });
+  const isNew = !existing;
+
+  const member = await prisma.member.upsert({
+    where: { phone },
+    create: { phone, firebaseUid },
+    update: { firebaseUid },
+    include: { household: true },
+  });
+
+  return { member, isNew };
 }
 
 // ─── Household queries ────────────────────────────────────────────────────────

@@ -8,7 +8,6 @@ if (!apiKey) {
 }
 
 const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 export interface ParsedTransaction {
   type: 'EXPENSE' | 'INCOME';
@@ -35,24 +34,33 @@ Categorisation rules:
 If the message is NOT about a financial transaction, return exactly: null
 Return ONLY the JSON object or "null" — no markdown, no code fences, no explanation.`;
 
+// Throws on API/network errors; returns null only when text is not a transaction.
 export async function parseTransaction(userMessage: string): Promise<ParsedTransaction | null> {
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    systemInstruction: SYSTEM_PROMPT,
+  });
+
+  const result = await model.generateContent(`Message: "${userMessage}"`);
+  const raw = result.response.text().trim();
+  console.log('[Gemini] Raw response:', raw);
+
+  if (raw === 'null') return null;
+
   try {
-    const result = await model.generateContent([SYSTEM_PROMPT, `Message: "${userMessage}"`]);
-    const raw = result.response.text().trim();
+    // Extract the JSON object from the response (handles extra explanation text or code fences)
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
 
-    if (raw === 'null') return null;
-
-    // Strip accidental markdown code fences (```json ... ```)
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    const parsed = JSON.parse(cleaned) as ParsedTransaction;
+    const parsed = JSON.parse(jsonMatch[0]) as ParsedTransaction;
 
     // Basic validation
     if (!parsed.type || !parsed.category || !parsed.description) return null;
     if (parsed.type !== 'EXPENSE' && parsed.type !== 'INCOME') return null;
 
     return parsed;
-  } catch (err) {
-    console.error('[Gemini] Failed to parse transaction:', err);
+  } catch {
+    console.error('[Gemini] Failed to parse JSON from response:', raw);
     return null;
   }
 }

@@ -1,8 +1,73 @@
 import { prisma } from '../db/prisma.js';
 import { getMonthlyTransactions } from './transactionService.js';
 
+export interface MonthlyReportData {
+  month: number;
+  year: number;
+  monthName: string;
+  householdName: string | null;
+  budgetLimit: number;
+  totalExpenses: number;
+  totalIncome: number;
+  budgetUsedPct: number;
+  remaining: number;
+  topCategories: { category: string; amount: number; pct: number }[];
+  transactionCount: number;
+}
+
 /**
- * Builds a formatted WhatsApp-friendly monthly summary string.
+ * Returns structured data for the mobile app's monthly report screen.
+ * @param month - 1-indexed
+ */
+export async function getMonthlyReportData(
+  householdId: string,
+  year: number,
+  month: number,
+): Promise<MonthlyReportData | null> {
+  const household = await prisma.household.findUnique({ where: { id: householdId } });
+  if (!household) return null;
+
+  const transactions = await getMonthlyTransactions(householdId, year, month);
+  const expenses = transactions.filter((t) => t.type === 'EXPENSE');
+  const incomes = transactions.filter((t) => t.type === 'INCOME');
+
+  const totalExpenses = expenses.reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = incomes.reduce((sum, t) => sum + t.amount, 0);
+
+  const byCategory: Record<string, number> = {};
+  for (const t of expenses) {
+    byCategory[t.category] = (byCategory[t.category] ?? 0) + t.amount;
+  }
+  const topCategories = Object.entries(byCategory)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5)
+    .map(([category, amount]) => ({
+      category,
+      amount,
+      pct: totalExpenses > 0 ? Math.round((amount / totalExpenses) * 100) : 0,
+    }));
+
+  const budgetLimit = household.budgetLimit;
+  const budgetUsedPct = budgetLimit > 0 ? Math.round((totalExpenses / budgetLimit) * 100) : 0;
+  const monthName = new Date(year, month - 1).toLocaleString('default', { month: 'long' });
+
+  return {
+    month,
+    year,
+    monthName,
+    householdName: household.name,
+    budgetLimit,
+    totalExpenses,
+    totalIncome,
+    budgetUsedPct,
+    remaining: budgetLimit - totalExpenses,
+    topCategories,
+    transactionCount: expenses.length,
+  };
+}
+
+/**
+ * Builds a plain-text push notification summary (short, fits a notification body).
  * @param month - 1-indexed
  */
 export async function buildMonthlyReport(

@@ -1,20 +1,21 @@
 import 'dotenv/config';
-import { startBot } from './bot/client.js';
-import { handleMessage } from './bot/handlers/messageHandler.js';
+import { createServer } from './api/server.js';
 import { startMonthlyReportJob } from './jobs/monthlyReport.js';
+
+const PORT = Number(process.env.PORT) || 3000;
 
 async function main() {
   console.log('═══════════════════════════════════════════');
-  console.log('  💰 FinancialAssistant — WhatsApp Bot     ');
+  console.log('  💰 FinancialAssistant — API Server       ');
   console.log('═══════════════════════════════════════════');
 
-  // Register the cron job (does not require WA connection)
   startMonthlyReportJob();
 
-  // Connect to WhatsApp via Baileys
-  // On first run: a QR code will appear — scan it with WhatsApp
-  // On subsequent runs: session is restored from ./auth_info_baileys/
-  await startBot(handleMessage);
+  const app = createServer();
+  app.listen(PORT, () => {
+    console.log(`[API] Server running on http://localhost:${PORT}`);
+    console.log(`[API] Health check: http://localhost:${PORT}/health`);
+  });
 }
 
 main().catch((err) => {

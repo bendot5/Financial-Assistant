@@ -4,17 +4,17 @@ node_modules/
 # Build output
 dist/
 
-# Environment variables — NEVER commit this file
+# Environment variables — NEVER commit
 .env
+
+# Firebase service account key — contains private credentials, NEVER commit
+firebase-service-account.json
 
 # SQLite database files
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
-
-# WhatsApp auth session (contains private cryptographic keys)
-auth_info_baileys/
 
 # OS files
 .DS_Store
@@ -23,3 +23,8 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Expo / React Native
+mobile/.expo/
+mobile/android/
+mobile/ios/

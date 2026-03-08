@@ -24,17 +24,19 @@ model Household {
 }
 
 // ─── Member ──────────────────────────────────────────────────────────────────
-// Represents a WhatsApp user identified by their phone number.
-// onboardingStep tracks the conversational state machine:
+// Represents a user identified by their phone number.
+// onboardingStep tracks progress through the mobile onboarding wizard:
 //   WELCOME → INVITE_PROMPT → INCOME → BUDGET → COMPLETE
 model Member {
   id             String     @id @default(cuid())
   phone          String     @unique
+  firebaseUid    String?    @unique  // Firebase Auth UID — set on first login
   name           String?
   householdId    String?
   household      Household? @relation(fields: [householdId], references: [id])
   onboardingStep String     @default("WELCOME")
   pendingIncome  Float?     // Temporary storage between INCOME and BUDGET steps
+  pushToken      String?    // Expo push notification token
   createdAt      DateTime   @default(now())
 }
 
