@@ -6,7 +6,7 @@ dist/
 
 # Environment variables — NEVER commit
 .env
-
+.claude
 # Firebase service account key — contains private credentials, NEVER commit
 firebase-service-account.json
 
