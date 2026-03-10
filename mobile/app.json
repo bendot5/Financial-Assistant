@@ -14,14 +14,14 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.yourname.financialassistant"
+      "bundleIdentifier": "com.bendotan.financialassistant"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1a1a2e"
       },
-      "package": "com.yourname.financialassistant"
+      "package": "com.bendotan.financialassistant"
     },
     "plugins": [
       "expo-router",
