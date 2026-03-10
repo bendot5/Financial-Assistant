@@ -14,25 +14,53 @@ export interface ParsedTransaction {
   amount: number | null;
   category: string;
   description: string;
+  date?: string | null; // ISO date "YYYY-MM-DD" if mentioned, null otherwise
 }
 
-const SYSTEM_PROMPT = `You are a financial assistant that parses natural language messages into structured transaction data.
+const SYSTEM_PROMPT = `אתה עוזר פיננסי שמנתח הודעות בעברית ומחלץ מהן נתוני עסקה מובנים.
+התאריך של היום (ISO) יסופק בתחילת כל הודעה.
 
-Given a message, extract the transaction and return ONLY a JSON object with this exact shape:
+החזר אך ורק אובייקט JSON בצורה הבאה:
 {
-  "type": "EXPENSE" or "INCOME",
-  "amount": number (or null if not clearly stated),
-  "category": string (infer from context),
-  "description": string (concise, under 60 chars)
+  "type": "EXPENSE" או "INCOME",
+  "amount": מספר (או null אם לא צוין בבירור),
+  "category": מחרוזת (חייבת להיות אחת מהקטגוריות הרשומות למטה),
+  "description": מחרוזת (תיאור קצר עד 60 תווים, בעברית),
+  "date": מחרוזת או null (פורמט ISO "YYYY-MM-DD" אם צוין תאריך, אחרת null)
 }
 
-Categorisation rules:
-- "spent", "paid", "bought", "cost", "bill", "subscription", "groceries" → EXPENSE
-- "received", "earned", "salary", "income", "got paid", "freelance" → INCOME
-- Category examples: Food, Transport, Housing, Entertainment, Health, Shopping, Utilities, Salary, Freelance, Education, General
+כללי זיהוי סוג עסקה:
+- הוצאה (EXPENSE): "הוצאתי", "שילמתי", "קניתי", "עלה לי", "חיוב", "מנוי"
+- הכנסה (INCOME): "קיבלתי", "הכנסתי", "משכורת", "פרילנס", "הכנסה"
 
-If the message is NOT about a financial transaction, return exactly: null
-Return ONLY the JSON object or "null" — no markdown, no code fences, no explanation.`;
+כללי חילוץ תאריך:
+- "אתמול" → יום אחד אחורה
+- "שלשום" → יומיים אחורה
+- "ב-X לחודש" → חודש נוכחי, יום X
+- "לפני שבוע" → 7 ימים אחורה
+- ללא תאריך → היום
+
+קטגוריות (חייב להשתמש בדיוק במחרוזות העבריות הבאות):
+- אוכל         — מסעדה, מכולת, מזון לבני אדם בלבד
+- תחבורה       — דלק, רכב, אוטובוס, מונית, רכבת, חניה
+- דיור         — שכירות, משכנתה, ארנונה, חשמל, מים, גז, אינטרנט, סלולר, ביוב, ועד בית
+- בידור        — קולנוע, נטפליקס, משחקים, חופשה, בילוי
+- בריאות       — רופא, תרופות, ביטוח בריאות, פסיכולוג, אופטיקה
+- קניות        — בגדים, אלקטרוניקה, כלי בית, ריהוט
+- משכורת       — שכר עבודה חודשי
+- פרילנס       — עצמאי, ייעוץ, פרוייקט
+- חינוך        — לימודים, קורסים, ספרי לימוד, גן ילדים
+- חיות מחמד   — אוכל לחיות, מזון לכלב/חתול, וטרינר, ציוד לחיות, טיפוח חיות
+- כללי         — כל הוצאה שאינה מתאימה לשאר הקטגוריות
+
+חשוב במיוחד לגבי קטגוריות:
+- "אוכל לחיות", "מזון לכלב", "מזון לחתול", "אוכל לדג", "פינוקים לכלב" → חיות מחמד (לא אוכל!)
+- "וטרינר", "חיסון לכלב", "עיקור", "ציוד לחיות" → חיות מחמד
+- "תרופות" ללא הקשר של חיות → בריאות
+- הקשר קובע את הקטגוריה, לא רק מילות מפתח בודדות
+
+אם ההודעה אינה עסקה פיננסית, החזר בדיוק: null
+החזר אך ורק את אובייקט ה-JSON או "null" — ללא markdown, ללא הסברים.`;
 
 // Throws on API/network errors; returns null only when text is not a transaction.
 export async function parseTransaction(userMessage: string): Promise<ParsedTransaction | null> {
@@ -41,7 +69,8 @@ export async function parseTransaction(userMessage: string): Promise<ParsedTrans
     systemInstruction: SYSTEM_PROMPT,
   });
 
-  const result = await model.generateContent(`Message: "${userMessage}"`);
+  const today = new Date().toISOString().slice(0, 10);
+  const result = await model.generateContent(`תאריך היום: ${today}\nהודעה: "${userMessage}"`);
   const raw = result.response.text().trim();
   console.log('[Gemini] Raw response:', raw);
 

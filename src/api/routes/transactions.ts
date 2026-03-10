@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import type { AuthRequest } from '../middleware/auth.js';
 import { getMemberByFirebaseUid } from '../../services/householdService.js';
-import { logTransaction, getMonthlyTransactions } from '../../services/transactionService.js';
+import {
+  logTransaction,
+  getMonthlyTransactions,
+  updateTransaction,
+  deleteTransaction,
+  getTransactionById,
+} from '../../services/transactionService.js';
 import { parseTransaction } from '../../ai/gemini.js';
 
 const router = Router();
@@ -42,8 +48,7 @@ router.post('/', async (req, res) => {
   if (!parsed) {
     res.json({
       type: 'NOT_TRANSACTION',
-      message:
-        "I couldn't identify a transaction. Try: \"Spent 50 on lunch\" or \"Received salary 5000\".",
+      message: 'לא הצלחתי לזהות פעולה פיננסית. נסה: "הוצאתי 50 על אוכל" או "קיבלתי משכורת 5000".',
     });
     return;
   }
@@ -51,7 +56,7 @@ router.post('/', async (req, res) => {
   if (!parsed.amount || parsed.amount <= 0) {
     res.json({
       type: 'MISSING_AMOUNT',
-      message: `Got it — *${parsed.description}* (${parsed.category}). How much was it?`,
+      message: `הבנתי — ${parsed.description} (${parsed.category}). כמה זה עלה?`,
     });
     return;
   }
@@ -63,16 +68,65 @@ router.post('/', async (req, res) => {
     amount: parsed.amount,
     category: parsed.category,
     description: parsed.description,
+    date: parsed.date ? new Date(parsed.date) : undefined,
   });
 
   const emoji = parsed.type === 'EXPENSE' ? '💸' : '💰';
-  const label = parsed.type === 'EXPENSE' ? 'Expense' : 'Income';
+  const label = parsed.type === 'EXPENSE' ? 'הוצאה נרשמה' : 'הכנסה נרשמה';
 
   res.status(201).json({
     type: 'SUCCESS',
     transaction,
-    message: `${emoji} ${label} logged!\n\n• Amount: $${parsed.amount.toFixed(2)}\n• Category: ${parsed.category}\n• Note: ${parsed.description}`,
+    message: `${emoji} ${label}!\n\n• סכום: ₪${parsed.amount.toFixed(2)}\n• תחום: ${parsed.category}\n• פירוט: ${parsed.description}`,
   });
+});
+
+/**
+ * POST /api/transactions/manual
+ * Log a transaction directly with structured data (no AI).
+ * Body: { type, amount, category, description }
+ */
+router.post('/manual', async (req, res) => {
+  const { uid } = (req as AuthRequest).user;
+  const member = await getMemberByFirebaseUid(uid);
+
+  if (!member?.householdId) {
+    res.status(403).json({ error: 'Complete onboarding before logging transactions' });
+    return;
+  }
+
+  const { type, amount, category, description, date } = req.body as {
+    type?: string;
+    amount?: number;
+    category?: string;
+    description?: string;
+    date?: string;
+  };
+
+  if (!type || (type !== 'EXPENSE' && type !== 'INCOME')) {
+    res.status(400).json({ error: 'type must be EXPENSE or INCOME' });
+    return;
+  }
+  if (!amount || amount <= 0) {
+    res.status(400).json({ error: 'amount must be a positive number' });
+    return;
+  }
+  if (!category?.trim()) {
+    res.status(400).json({ error: 'category is required' });
+    return;
+  }
+
+  const transaction = await logTransaction({
+    householdId: member.householdId,
+    memberPhone: member.phone,
+    type,
+    amount,
+    category: category.trim(),
+    description: (description ?? category).trim(),
+    date: date ? new Date(date) : undefined,
+  });
+
+  res.status(201).json({ transaction });
 });
 
 /**
@@ -95,6 +149,60 @@ router.get('/', async (req, res) => {
 
   const transactions = await getMonthlyTransactions(member.householdId, year, month);
   res.json({ transactions });
+});
+
+/**
+ * PUT /api/transactions/:id
+ * Update a transaction's amount, category, description, or type.
+ * Only members of the same household can update.
+ */
+router.put('/:id', async (req, res) => {
+  const { uid } = (req as AuthRequest).user;
+  const member = await getMemberByFirebaseUid(uid);
+  if (!member?.householdId) { res.status(403).json({ error: 'No household linked' }); return; }
+
+  const tx = await getTransactionById(req.params.id);
+  if (!tx || tx.householdId !== member.householdId) {
+    res.status(404).json({ error: 'Transaction not found' });
+    return;
+  }
+
+  const { amount, category, description, type, date } = req.body as {
+    amount?: number;
+    category?: string;
+    description?: string;
+    type?: 'EXPENSE' | 'INCOME';
+    date?: string | null;
+  };
+
+  const updated = await updateTransaction(req.params.id, {
+    ...(amount !== undefined && { amount }),
+    ...(category !== undefined && { category }),
+    ...(description !== undefined && { description }),
+    ...(type !== undefined && { type }),
+    ...(date !== undefined && { date: date ? new Date(date) : null }),
+  });
+
+  res.json({ transaction: updated });
+});
+
+/**
+ * DELETE /api/transactions/:id
+ * Delete a transaction. Only members of the same household can delete.
+ */
+router.delete('/:id', async (req, res) => {
+  const { uid } = (req as AuthRequest).user;
+  const member = await getMemberByFirebaseUid(uid);
+  if (!member?.householdId) { res.status(403).json({ error: 'No household linked' }); return; }
+
+  const tx = await getTransactionById(req.params.id);
+  if (!tx || tx.householdId !== member.householdId) {
+    res.status(404).json({ error: 'Transaction not found' });
+    return;
+  }
+
+  await deleteTransaction(req.params.id);
+  res.json({ ok: true });
 });
 
 export default router;

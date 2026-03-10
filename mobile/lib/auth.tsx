@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { getAuth, onAuthStateChanged, type User } from 'firebase/auth';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { getAuth, onAuthStateChanged, signOut as firebaseSignOut, type User } from 'firebase/auth';
 import { api, type Member } from './api';
 import '../lib/firebase'; // ensure Firebase is initialised
 
@@ -17,6 +17,7 @@ interface AuthContextValue {
   member: Member | null;
   isLoading: boolean;
   refreshMember: () => Promise<void>;
+  signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -54,8 +55,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (firebaseUser) await verifyWithBackend(firebaseUser);
   };
 
+  const signOut = async () => {
+    const auth = getAuth();
+    await firebaseSignOut(auth);
+    // onAuthStateChanged will clear member state automatically
+  };
+
   return (
-    <AuthContext.Provider value={{ firebaseUser, member, isLoading, refreshMember }}>
+    <AuthContext.Provider value={{ firebaseUser, member, isLoading, refreshMember, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -14,11 +14,11 @@ export default function OtpScreen() {
   const handleVerify = async () => {
     const confirmation = getConfirmation();
     if (!confirmation) {
-      Alert.alert('Session expired', 'Go back and request a new code.');
+      Alert.alert('הפגישה פגה', 'חזור אחורה ובקש קוד חדש.');
       return;
     }
     if (code.length < 6) {
-      Alert.alert('Invalid code', 'Enter the 6-digit code from your SMS.');
+      Alert.alert('קוד לא תקין', 'הזן את הקוד בן 6 הספרות שקיבלת ב-SMS.');
       return;
     }
     setLoading(true);
@@ -26,7 +26,7 @@ export default function OtpScreen() {
       await confirmation.confirm(code);
       // onAuthStateChanged in RootLayout will handle navigation automatically
     } catch {
-      Alert.alert('Wrong code', 'The code is incorrect or has expired. Try again.');
+      Alert.alert('קוד שגוי', 'הקוד שגוי או פג תוקף. נסה שוב.');
     } finally {
       setLoading(false);
     }
@@ -35,8 +35,8 @@ export default function OtpScreen() {
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <Text style={s.emoji}>📱</Text>
-      <Text style={s.title}>Enter the code</Text>
-      <Text style={s.subtitle}>We sent a 6-digit code to your phone</Text>
+      <Text style={s.title}>הזן את הקוד</Text>
+      <Text style={s.subtitle}>שלחנו קוד בן 6 ספרות לטלפון שלך</Text>
 
       <TextInput
         style={s.input}
@@ -51,7 +51,7 @@ export default function OtpScreen() {
       />
 
       <TouchableOpacity style={[s.btn, loading && s.btnDisabled]} onPress={handleVerify} disabled={loading}>
-        <Text style={s.btnText}>{loading ? 'Verifying…' : 'Verify →'}</Text>
+        <Text style={s.btnText}>{loading ? 'מאמת...' : 'אמת ←'}</Text>
       </TouchableOpacity>
     </KeyboardAvoidingView>
   );

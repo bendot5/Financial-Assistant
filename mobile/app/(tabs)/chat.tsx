@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, KeyboardAvoidingView, Platform, Keyboard,
@@ -6,12 +6,14 @@ import {
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api';
+import { useTheme } from '../../lib/theme';
 import { ChatBubble, type Message } from '../../components/ChatBubble';
+import { TransactionFormModal } from '../../components/TransactionFormModal';
 
 const WELCOME: Message = {
   id: 'welcome',
   role: 'bot',
-  text: "Hi! Tell me about an expense or income and I'll log it.\n\nExamples:\n• \"Spent 50 on lunch\"\n• \"Netflix $15\"\n• \"Received salary 5000\"",
+  text: 'שלום! ספר לי על הוצאה או הכנסה ואני ארשום אותה.\n\nלדוגמה:\n• "הוצאתי 50 על אוכל"\n• "נטפליקס 15 שקל"\n• "קיבלתי משכורת 5000"',
   at: new Date(),
 };
 
@@ -19,9 +21,28 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [manualVisible, setManualVisible] = useState(false);
+  // Stores the previous user message when the bot asks a follow-up (e.g. "כמה זה עלה?")
+  const [pendingContext, setPendingContext] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
   const queryClient = useQueryClient();
   const router = useRouter();
+  const { colors } = useTheme();
+
+  const s = useMemo(() => StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.bg },
+    header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 12, backgroundColor: colors.cardBg },
+    headerTitle: { fontSize: 20, fontWeight: '700', color: colors.text, textAlign: 'right' },
+    headerSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2, textAlign: 'right' },
+    list: { padding: 16, gap: 8, flexGrow: 1, justifyContent: 'flex-end' },
+    inputRow: { flexDirection: 'row', padding: 12, gap: 10, backgroundColor: colors.cardBg, alignItems: 'flex-end' },
+    input: { flex: 1, backgroundColor: colors.inputBg, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: colors.text, fontSize: 15, maxHeight: 100 },
+    sendBtn: { width: 44, height: 44, backgroundColor: colors.accent, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+    sendDisabled: { opacity: 0.4 },
+    sendIcon: { color: '#fff', fontSize: 20, fontWeight: '700' },
+    manualBtn: { width: 44, height: 44, backgroundColor: colors.inputBg, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.accent },
+    manualIcon: { color: colors.accent, fontSize: 20 },
+  }), [colors]);
 
   const send = async () => {
     const text = input.trim();
@@ -33,22 +54,30 @@ export default function ChatScreen() {
     Keyboard.dismiss();
     setLoading(true);
 
+    // If there's a pending context (bot asked a follow-up), combine with previous message
+    const fullMessage = pendingContext ? `${pendingContext} ${text}` : text;
+
     try {
-      const res = await api.post<{ type: string; message: string }>('/transactions', { message: text });
+      const res = await api.post<{ type: string; message: string }>('/transactions', { message: fullMessage });
       const botMsg: Message = { id: `bot-${Date.now()}`, role: 'bot', text: res.message, at: new Date() };
       setMessages((prev) => [...prev, botMsg]);
 
-      // Refresh dashboard data when a transaction is successfully logged
       if (res.type === 'SUCCESS') {
+        setPendingContext(null);
         queryClient.invalidateQueries({ queryKey: ['transactions'] });
         queryClient.invalidateQueries({ queryKey: ['report'] });
-        // Navigate to dashboard after a short delay so the user can read the confirmation
         setTimeout(() => router.push('/(tabs)/'), 1500);
+      } else if (res.type === 'MISSING_AMOUNT') {
+        // Save combined message so the next reply has full context
+        setPendingContext(fullMessage);
+      } else {
+        setPendingContext(null);
       }
-    } catch (err) {
+    } catch {
+      setPendingContext(null);
       const errMsg: Message = {
         id: `err-${Date.now()}`, role: 'bot',
-        text: '❌ Something went wrong. Please try again.',
+        text: '❌ משהו השתבש. נסה שוב.',
         at: new Date(),
       };
       setMessages((prev) => [...prev, errMsg]);
@@ -58,11 +87,24 @@ export default function ChatScreen() {
     }
   };
 
+  const handleManualSave = async (data: { type: 'EXPENSE' | 'INCOME'; amount: number; category: string; description: string; date: string }) => {
+    await api.post('/transactions/manual', data);
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['report'] });
+    const botMsg: Message = {
+      id: `manual-${Date.now()}`, role: 'bot',
+      text: `✅ נרשם: ${data.description} — ₪${data.amount}`,
+      at: new Date(),
+    };
+    setMessages((prev) => [...prev, botMsg]);
+    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+  };
+
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={s.header}>
-        <Text style={s.headerTitle}>Log Transaction</Text>
-        <Text style={s.headerSub}>AI-powered — just type naturally</Text>
+        <Text style={s.headerTitle}>רישום פעולה</Text>
+        <Text style={s.headerSub}>מונע על ידי בינה מלאכותית — פשוט כתוב בטבעיות</Text>
       </View>
 
       <FlatList
@@ -75,32 +117,29 @@ export default function ChatScreen() {
       />
 
       <View style={s.inputRow}>
+        <TouchableOpacity style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]} onPress={send} disabled={!input.trim() || loading}>
+          <Text style={s.sendIcon}>↑</Text>
+        </TouchableOpacity>
         <TextInput
           style={s.input}
           value={input}
           onChangeText={setInput}
-          placeholder="e.g. Spent 50 on groceries"
-          placeholderTextColor="#555"
+          placeholder="לדוגמה: הוצאתי 50 על קניות"
+          placeholderTextColor={colors.textMuted}
           multiline
           onSubmitEditing={send}
+          textAlign="right"
         />
-        <TouchableOpacity style={[s.sendBtn, (!input.trim() || loading) && s.sendDisabled]} onPress={send} disabled={!input.trim() || loading}>
-          <Text style={s.sendIcon}>↑</Text>
+        <TouchableOpacity style={s.manualBtn} onPress={() => setManualVisible(true)}>
+          <Text style={s.manualIcon}>✎</Text>
         </TouchableOpacity>
       </View>
+
+      <TransactionFormModal
+        visible={manualVisible}
+        onClose={() => setManualVisible(false)}
+        onSave={handleManualSave}
+      />
     </KeyboardAvoidingView>
   );
 }
-
-const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1a1a2e' },
-  header: { paddingTop: 60, paddingHorizontal: 20, paddingBottom: 12, backgroundColor: '#16213e' },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: '#fff' },
-  headerSub: { fontSize: 12, color: '#888', marginTop: 2 },
-  list: { padding: 16, gap: 8, flexGrow: 1, justifyContent: 'flex-end' },
-  inputRow: { flexDirection: 'row', padding: 12, gap: 10, backgroundColor: '#16213e', alignItems: 'flex-end' },
-  input: { flex: 1, backgroundColor: '#0f3460', borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10, color: '#fff', fontSize: 15, maxHeight: 100 },
-  sendBtn: { width: 44, height: 44, backgroundColor: '#6c63ff', borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  sendDisabled: { opacity: 0.4 },
-  sendIcon: { color: '#fff', fontSize: 20, fontWeight: '700' },
-});

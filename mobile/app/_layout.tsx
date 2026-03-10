@@ -1,9 +1,15 @@
 import { useEffect } from 'react';
+import { I18nManager } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '../lib/auth';
+import { ThemeProvider, useTheme } from '../lib/theme';
 import { registerForPushNotifications } from '../lib/pushNotifications';
+
+// Force RTL layout for Hebrew UI
+I18nManager.allowRTL(true);
+I18nManager.forceRTL(true);
 
 const queryClient = new QueryClient();
 
@@ -40,14 +46,21 @@ function NavigationGuard() {
   return null;
 }
 
+function ThemedStatusBar() {
+  const { colors } = useTheme();
+  return <StatusBar style={colors.statusBar} />;
+}
+
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <NavigationGuard />
-        <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false }} />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <NavigationGuard />
+          <ThemedStatusBar />
+          <Stack screenOptions={{ headerShown: false }} />
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

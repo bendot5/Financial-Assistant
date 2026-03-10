@@ -27,18 +27,11 @@ export const api = {
     request<T>(path, { method: 'POST', body: JSON.stringify(body) }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+  delete: <T>(path: string) =>
+    request<T>(path, { method: 'DELETE' }),
 };
 
 // ─── Typed helpers ────────────────────────────────────────────────────────────
-
-export interface Member {
-  id: string;
-  phone: string;
-  name: string | null;
-  householdId: string | null;
-  onboardingStep: string;
-  pushToken: string | null;
-}
 
 export interface Household {
   id: string;
@@ -48,6 +41,16 @@ export interface Household {
   budgetLimit: number;
 }
 
+export interface Member {
+  id: string;
+  phone: string;
+  name: string | null;
+  householdId: string | null;
+  onboardingStep: string;
+  pushToken: string | null;
+  household?: Household | null;
+}
+
 export interface Transaction {
   id: string;
   type: 'EXPENSE' | 'INCOME';
@@ -55,7 +58,14 @@ export interface Transaction {
   category: string;
   description: string;
   memberPhone: string;
+  date?: string | null;
   createdAt: string;
+}
+
+export interface CategoryBudget {
+  id: string;
+  category: string;
+  budgetLimit: number;
 }
 
 export interface MonthlyReport {
@@ -69,5 +79,18 @@ export interface MonthlyReport {
   budgetUsedPct: number;
   remaining: number;
   topCategories: { category: string; amount: number; pct: number }[];
+  incomeCategories: { category: string; amount: number; pct: number }[];
+  categoryBudgets: { category: string; budgetLimit: number; spent: number; pct: number }[];
+  dailyExpenses: { day: number; amount: number }[];
   transactionCount: number;
+}
+
+export interface WeeklyReport {
+  weekOf: string;
+  totalExpenses: number;
+  totalIncome: number;
+  weeklyBudget: number;
+  budgetUsedPct: number;
+  topCategories: { category: string; amount: number; pct: number }[];
+  categoryBudgets: { category: string; weeklyLimit: number; spent: number; pct: number }[];
 }

@@ -7,10 +7,28 @@ export interface CreateTransactionInput {
   amount: number;
   category: string;
   description: string;
+  date?: Date;
 }
 
 export async function logTransaction(input: CreateTransactionInput) {
-  return prisma.transaction.create({ data: input });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return prisma.transaction.create({ data: input as any });
+}
+
+export async function updateTransaction(
+  id: string,
+  data: { amount?: number; category?: string; description?: string; type?: 'EXPENSE' | 'INCOME'; date?: Date | null },
+) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return prisma.transaction.update({ where: { id }, data: data as any });
+}
+
+export async function deleteTransaction(id: string) {
+  return prisma.transaction.delete({ where: { id } });
+}
+
+export async function getTransactionById(id: string) {
+  return prisma.transaction.findUnique({ where: { id } });
 }
 
 /**

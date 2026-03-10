@@ -18,7 +18,7 @@ export default function PhoneScreen() {
   const handleSend = () => {
     const cleaned = phone.trim();
     if (!cleaned.startsWith('+') || cleaned.length < 8) {
-      Alert.alert('Invalid number', 'Enter your full number with country code, e.g. +1 555 123 4567');
+      Alert.alert('מספר לא תקין', 'הזן את המספר המלא עם קידומת המדינה, לדוגמה: +972 50 123 4567');
       return;
     }
     setLoading(true);
@@ -29,7 +29,6 @@ export default function PhoneScreen() {
     setShowRecaptcha(false);
     setLoading(false);
     const auth = getAuth();
-    // Wrap the verificationId in a confirmation object that otp.tsx expects.
     setConfirmation({
       confirm: async (code: string) => {
         const credential = PhoneAuthProvider.credential(verificationId, code);
@@ -42,7 +41,7 @@ export default function PhoneScreen() {
   const handleError = (msg: string) => {
     setShowRecaptcha(false);
     setLoading(false);
-    Alert.alert('Error', msg);
+    Alert.alert('שגיאה', msg);
   };
 
   return (
@@ -57,25 +56,26 @@ export default function PhoneScreen() {
 
       <Text style={s.logo}>💰</Text>
       <Text style={s.title}>FinancialAssistant</Text>
-      <Text style={s.subtitle}>Track spending with your household</Text>
+      <Text style={s.subtitle}>עקוב אחר הוצאות עם משק ביתך</Text>
 
       <View style={s.card}>
-        <Text style={s.label}>Phone number</Text>
+        <Text style={s.label}>מספר טלפון</Text>
         <TextInput
           style={s.input}
           value={phone}
           onChangeText={setPhone}
-          placeholder="+1 555 123 4567"
+          placeholder="+972 50 123 4567"
           placeholderTextColor="#888"
           keyboardType="phone-pad"
           autoFocus
+          textAlign="right"
         />
         <TouchableOpacity style={[s.btn, loading && s.btnDisabled]} onPress={handleSend} disabled={loading}>
-          <Text style={s.btnText}>{loading ? 'Sending…' : 'Send OTP →'}</Text>
+          <Text style={s.btnText}>{loading ? 'שולח...' : 'שלח קוד ←'}</Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={s.hint}>We'll send a one-time verification code via SMS.</Text>
+      <Text style={s.hint}>נשלח קוד אימות חד-פעמי באמצעות SMS.</Text>
     </KeyboardAvoidingView>
   );
 }
@@ -86,7 +86,7 @@ const s = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '700', color: '#fff', marginBottom: 4 },
   subtitle: { fontSize: 14, color: '#aaa', marginBottom: 40 },
   card: { width: '100%', backgroundColor: '#16213e', borderRadius: 16, padding: 24, gap: 12 },
-  label: { color: '#ccc', fontSize: 13, fontWeight: '600' },
+  label: { color: '#ccc', fontSize: 13, fontWeight: '600', textAlign: 'right' },
   input: { backgroundColor: '#0f3460', borderRadius: 10, padding: 14, fontSize: 16, color: '#fff' },
   btn: { backgroundColor: '#6c63ff', borderRadius: 10, padding: 16, alignItems: 'center', marginTop: 8 },
   btnDisabled: { opacity: 0.5 },

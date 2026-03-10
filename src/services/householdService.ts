@@ -91,3 +91,10 @@ export async function getHouseholdMembers(householdId: string) {
     orderBy: { createdAt: 'asc' },
   });
 }
+
+export async function updateHousehold(
+  householdId: string,
+  data: { monthlyIncome?: number; budgetLimit?: number; name?: string },
+) {
+  return prisma.household.update({ where: { id: householdId }, data });
+}

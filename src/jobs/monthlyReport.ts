@@ -39,12 +39,12 @@ export function startMonthlyReportJob(): void {
 
       const budgetLine =
         data.budgetUsedPct > 100
-          ? `Over budget by $${Math.abs(data.remaining).toFixed(0)}!`
-          : `$${data.remaining.toFixed(0)} remaining of $${data.budgetLimit.toFixed(0)}`;
+          ? `חריגה של ₪${Math.abs(data.remaining).toFixed(0)} מהתקציב!`
+          : `נותר ₪${data.remaining.toFixed(0)} מתוך ₪${data.budgetLimit.toFixed(0)}`;
 
       await sendPushNotifications(tokens, {
-        title: `📊 ${data.monthName} ${data.year} Summary`,
-        body: `Spent $${data.totalExpenses.toFixed(0)} (${data.budgetUsedPct}%) — ${budgetLine}`,
+        title: `📊 סיכום ${data.monthName} ${data.year}`,
+        body: `הוצאות: ₪${data.totalExpenses.toFixed(0)} (${data.budgetUsedPct}%) — ${budgetLine}`,
         data: { screen: '/reports', month: reportMonth, year: reportYear },
       });
 

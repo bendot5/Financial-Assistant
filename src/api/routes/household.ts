@@ -5,6 +5,7 @@ import {
   createHousehold,
   findHouseholdByCode,
   updateMember,
+  updateHousehold,
   getHouseholdMembers,
 } from '../../services/householdService.js';
 
@@ -77,6 +78,28 @@ router.post('/join', async (req, res) => {
 
   const members = await getHouseholdMembers(household.id);
   res.json({ household, members });
+});
+
+/**
+ * PUT /api/household — update household settings (income, budget)
+ * Body: { monthlyIncome?, budgetLimit? }
+ */
+router.put('/', async (req, res) => {
+  const { uid } = (req as AuthRequest).user;
+  const member = await getMemberByFirebaseUid(uid);
+  if (!member?.householdId) { res.status(404).json({ error: 'No household linked' }); return; }
+
+  const { monthlyIncome, budgetLimit } = req.body as {
+    monthlyIncome?: number;
+    budgetLimit?: number;
+  };
+
+  const household = await updateHousehold(member.householdId, {
+    ...(monthlyIncome !== undefined && { monthlyIncome }),
+    ...(budgetLimit !== undefined && { budgetLimit }),
+  });
+
+  res.json({ household });
 });
 
 export default router;

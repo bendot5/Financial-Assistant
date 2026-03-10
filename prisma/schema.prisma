@@ -13,14 +13,15 @@ datasource db {
 // ─── Household ───────────────────────────────────────────────────────────────
 // A shared "wallet" — one or more members (phones) track expenses together.
 model Household {
-  id            String        @id @default(cuid())
-  name          String?
-  inviteCode    String        @unique
-  monthlyIncome Float         @default(0)
-  budgetLimit   Float         @default(0)
-  members       Member[]
-  transactions  Transaction[]
-  createdAt     DateTime      @default(now())
+  id               String           @id @default(cuid())
+  name             String?
+  inviteCode       String           @unique
+  monthlyIncome    Float            @default(0)
+  budgetLimit      Float            @default(0)
+  members          Member[]
+  transactions     Transaction[]
+  categoryBudgets  CategoryBudget[]
+  createdAt        DateTime         @default(now())
 }
 
 // ─── Member ──────────────────────────────────────────────────────────────────
@@ -52,5 +53,17 @@ model Transaction {
   amount      Float
   category    String
   description String
+  date        DateTime? // User-specified date (overrides createdAt for display/reports)
   createdAt   DateTime  @default(now())
+}
+
+// ─── CategoryBudget ───────────────────────────────────────────────────────────
+// Per-household spending goal for a specific category.
+model CategoryBudget {
+  id          String    @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id])
+  category    String
+  budgetLimit Float
+  @@unique([householdId, category])
 }

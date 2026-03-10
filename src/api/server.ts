@@ -6,6 +6,7 @@ import profileRoutes from './routes/profile.js';
 import householdRoutes from './routes/household.js';
 import transactionRoutes from './routes/transactions.js';
 import reportRoutes from './routes/reports.js';
+import categoryBudgetRoutes from './routes/categoryBudgets.js';
 
 export function createServer() {
   const app = express();
@@ -24,6 +25,7 @@ export function createServer() {
   app.use('/api/household', verifyFirebaseToken, householdRoutes);
   app.use('/api/transactions', verifyFirebaseToken, transactionRoutes);
   app.use('/api/reports', verifyFirebaseToken, reportRoutes);
+  app.use('/api/category-budgets', verifyFirebaseToken, categoryBudgetRoutes);
 
   return app;
 }
