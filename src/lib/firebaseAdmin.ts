@@ -1,23 +1,19 @@
 import admin from 'firebase-admin';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 
-const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH ?? './firebase-service-account.json';
+const projectId = process.env.FIREBASE_PROJECT_ID;
+const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
 
-let serviceAccount: admin.ServiceAccount;
-try {
-  serviceAccount = JSON.parse(readFileSync(resolve(serviceAccountPath), 'utf-8'));
-} catch {
+if (!projectId || !clientEmail || !privateKey) {
   throw new Error(
-    `Could not read Firebase service account at "${serviceAccountPath}".\n` +
-      'Download it from: Firebase Console → Project Settings → Service Accounts → Generate new private key\n' +
-      'Then set FIREBASE_SERVICE_ACCOUNT_PATH in your .env file.',
+    'Missing Firebase credentials. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in your .env file.\n' +
+    'Values are found in Firebase Console → Project Settings → Service Accounts → Generate new private key.',
   );
 }
 
 if (!admin.apps.length) {
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+    credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
   });
 }
 

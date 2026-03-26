@@ -8,8 +8,11 @@ dist/
 .env
 mobile/.env
 .claude
-# Firebase service account key — contains private credentials, NEVER commit
+# Firebase service account keys — contain private credentials, NEVER commit
 firebase-service-account.json
+*firebase-adminsdk*.json
+financial-assistant-*.json
+*.json.key
 
 # SQLite database files
 *.db
