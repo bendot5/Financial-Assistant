@@ -7,12 +7,13 @@ import householdRoutes from './routes/household.js';
 import transactionRoutes from './routes/transactions.js';
 import reportRoutes from './routes/reports.js';
 import categoryBudgetRoutes from './routes/categoryBudgets.js';
+import recurringTransactionRoutes from './routes/recurringTransactions.js';
 
 export function createServer() {
   const app = express();
 
   app.use(cors());
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
 
   // Health check
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
@@ -26,6 +27,7 @@ export function createServer() {
   app.use('/api/transactions', verifyFirebaseToken, transactionRoutes);
   app.use('/api/reports', verifyFirebaseToken, reportRoutes);
   app.use('/api/category-budgets', verifyFirebaseToken, categoryBudgetRoutes);
+  app.use('/api/recurring-transactions', verifyFirebaseToken, recurringTransactionRoutes);
 
   return app;
 }

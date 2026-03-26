@@ -1,6 +1,6 @@
 # FinancialAssistant — מעקב פיננסי חכם למשק בית
 
-אפליקציית מעקב הוצאות והכנסות למשק בית עם ממשק בעברית, AI לניתוח טקסט חופשי, ואפשרות שיתוף בין חברי משק הבית. כוללת סיכומים חודשיים ושבועיים, גרפים, יעדי הוצאה לפי קטגוריה ועוד.
+אפליקציית מעקב הוצאות והכנסות למשק בית עם ממשק בעברית, AI לניתוח טקסט חופשי וזיהוי תמונות, תשלומים קבועים אוטומטיים, ואפשרות שיתוף בין חברי משק הבית. כוללת סיכומים חודשיים ושבועיים, גרפים, יעדי הוצאה לפי קטגוריה ועוד.
 
 ---
 
@@ -8,11 +8,11 @@
 
 | Layer | Choice |
 |---|---|
-| Mobile | React Native + Expo 54 (expo-router) |
-| Auth | Firebase Phone Auth (SMS OTP) |
-| Backend | Node.js 20 + Express + TypeScript (ESM) |
+| Mobile | React Native + Expo (expo-router) |
+| Auth | Firebase Auth — Email/Password + Google Sign-In |
+| Backend | Node.js 20 + Express + TypeScript |
 | Database | SQLite + Prisma ORM |
-| AI | Google Gemini 2.5 Flash |
+| AI | Google Gemini 2.5 Flash (text + vision) |
 | Push Notifications | Expo Push Notifications + Firebase Admin SDK |
 | Scheduler | node-cron |
 
@@ -23,15 +23,17 @@
 ```
 FinancialAssistant/
 ├── src/                          # Backend (Node.js / Express)
-│   ├── index.ts                  # Entry point — starts Express server + cron
+│   ├── index.ts                  # Entry point — starts Express server + cron jobs
 │   ├── ai/
-│   │   └── gemini.ts             # Gemini 2.5 Flash — חילוץ עסקאות מטקסט עברי
+│   │   └── gemini.ts             # Gemini 2.5 Flash — text & image transaction parsing
 │   ├── api/
 │   │   ├── server.ts             # Express app setup, CORS, middleware
 │   │   ├── middleware/
 │   │   │   └── auth.ts           # Firebase Admin JWT verification
 │   │   └── routes/
-│   │       ├── transactions.ts   # POST/GET/PUT/DELETE /api/transactions
+│   │       ├── auth.ts           # POST /api/auth/login — upsert member
+│   │       ├── transactions.ts   # POST/GET/PUT/DELETE + /image endpoint
+│   │       ├── recurringTransactions.ts  # Recurring transaction CRUD
 │   │       ├── household.ts      # Household CRUD & invite flow
 │   │       ├── profile.ts        # Member profile + push token registration
 │   │       ├── reports.ts        # Monthly/weekly report endpoints
@@ -39,39 +41,39 @@ FinancialAssistant/
 │   ├── db/
 │   │   └── prisma.ts             # Prisma client singleton
 │   ├── jobs/
-│   │   └── monthlyReport.ts      # Cron job — sends monthly summaries on 1st
+│   │   ├── monthlyReport.ts      # Cron job — sends monthly summaries on 1st
+│   │   └── recurringTransactions.ts  # Cron job — fires due recurring items daily 00:05
 │   └── services/
 │       ├── householdService.ts   # Member & Household CRUD
 │       ├── transactionService.ts # Transaction logging & queries
+│       ├── recurringTransactionService.ts  # computeNextRunAt, computeCurrentPeriodDate
 │       ├── reportService.ts      # Aggregation & report formatting
 │       └── categoryBudgetService.ts # Category budget CRUD
 ├── prisma/
-│   └── schema.prisma             # Household, Member, Transaction, CategoryBudget
+│   └── schema.prisma             # Household, Member, Transaction, RecurringTransaction, CategoryBudget
 └── mobile/                       # React Native app (Expo)
     ├── app/
     │   ├── (auth)/
-    │   │   ├── phone.tsx          # Phone number entry
-    │   │   └── otp.tsx            # SMS OTP verification
+    │   │   └── signin.tsx         # Email/Password + Google Sign-In
     │   ├── (onboarding)/
-    │   │   └── setup.tsx          # Household setup wizard (incl. category budgets)
+    │   │   └── ...                # WELCOME → INVITE_PROMPT → INCOME → BUDGET → COMPLETE
     │   └── (tabs)/
-    │       ├── _layout.tsx        # Tab bar layout
     │       ├── index.tsx          # מסך הבית — monthly + weekly summary + charts
-    │       ├── chat.tsx           # AI chat — log transactions
+    │       ├── chat.tsx           # AI chat — text + image (camera button)
     │       ├── history.tsx        # Transaction history
-    │       └── settings.tsx       # Settings — theme, budget goals, household
+    │       └── settings.tsx       # Settings — theme, budget goals, household, recurring
     ├── lib/
     │   ├── firebase.ts            # Firebase app init
-    │   ├── auth.tsx               # Auth context + session management
-    │   ├── api.ts                 # Axios client (attaches Firebase JWT)
+    │   ├── auth.tsx               # AuthContext (Firebase onAuthStateChanged)
+    │   ├── api.ts                 # fetch wrapper + all TypeScript interfaces
     │   ├── theme.tsx              # Dark/Light theme context + palette
     │   └── pushNotifications.ts  # Expo push token registration
     └── components/
         ├── BudgetGauge.tsx        # Budget usage gauge/progress bar
         ├── ChartSection.tsx       # Line / Bar / Pie charts (react-native-chart-kit)
         ├── TransactionCard.tsx    # Single transaction row card
-        ├── TransactionFormModal.tsx # Add/edit transaction form
-        └── RecaptchaModal.tsx     # WebView-based reCAPTCHA for phone auth
+        ├── TransactionFormModal.tsx # Add/edit transaction form (exports CATEGORIES)
+        └── RecurringTransactionModal.tsx  # Add recurring transaction form
 ```
 
 ---
@@ -82,8 +84,8 @@ FinancialAssistant/
 
 - Node.js 20+
 - A [Gemini API key](https://aistudio.google.com/app/apikey) (free tier: 1,500 req/day)
-- A Firebase project with **Phone Authentication** enabled
-- Firebase service account JSON (for the backend)
+- A Firebase project with **Email/Password** and **Google** authentication enabled
+- Firebase service account credentials (for the backend)
 
 ### 1. Backend setup
 
@@ -91,22 +93,19 @@ FinancialAssistant/
 npm install
 ```
 
-```bash
-cp .env.example .env
-```
-
 Fill in `.env`:
 
 ```env
 DATABASE_URL="file:./dev.db"
 GEMINI_API_KEY="your-key-here"
-FIREBASE_SERVICE_ACCOUNT_PATH="../your-service-account.json"
+FIREBASE_PROJECT_ID="your-project-id"
+FIREBASE_CLIENT_EMAIL="firebase-adminsdk-xxx@your-project.iam.gserviceaccount.com"
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 PORT=3000
 ```
 
 ```bash
-npm run db:push       # Creates dev.db and applies the schema
-npm run db:generate   # Generates Prisma client types
+npx prisma db push    # Creates dev.db and applies the schema
 npm run dev           # Start backend in watch mode
 ```
 
@@ -117,20 +116,18 @@ cd mobile
 npm install
 ```
 
-Create `mobile/lib/firebaseConfig.ts` with your Firebase project config:
+Create `mobile/.env`:
 
-```ts
-export const firebaseConfig = {
-  apiKey: "...",
-  authDomain: "...",
-  projectId: "...",
-  // etc.
-};
+```env
+EXPO_PUBLIC_API_URL=http://<local-ip>:3000
+EXPO_PUBLIC_GOOGLE_CLIENT_ID=your-web-oauth-client-id.apps.googleusercontent.com
 ```
 
 ```bash
-npx expo start --android   # or --ios
+npx expo start --clear
 ```
+
+> **Note:** Google Sign-In is hidden in Expo Go (Google blocks `exp://` redirect URIs). It works only in native builds (EAS Build / standalone APK).
 
 ---
 
@@ -143,32 +140,31 @@ npx expo start --android   # or --ios
 | `npm run dev` | Start in watch mode (tsx) |
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm start` | Run the compiled build |
-| `npm run db:push` | Apply schema changes to SQLite |
-| `npm run db:generate` | Regenerate Prisma client |
-| `npm run db:migrate` | Create a named migration |
-| `npm run db:studio` | Open Prisma Studio — visual DB browser at localhost:5555 |
 
 ### Mobile (`/mobile`)
 
 | Script | Description |
 |---|---|
-| `npm start` | Start Expo dev server |
-| `npm run android` | Open on Android |
-| `npm run ios` | Open on iOS |
+| `npx expo start --clear` | Start Expo dev server |
+| `npx expo start --android` | Open on Android |
+| `npx expo start --ios` | Open on iOS |
 
 ---
 
 ## Features
 
-### Phone Auth
-Sign in with your phone number — Firebase sends an SMS OTP, verified via a hidden WebView reCAPTCHA.
+### Authentication
+Sign in with **Email & Password** or **Google Sign-In**. Firebase Auth handles session management; the backend verifies ID tokens via Firebase Admin SDK on every request.
+
+> Google Sign-In is available in native builds only — it is automatically hidden in Expo Go due to Google's `exp://` URI restriction.
 
 ### Onboarding Wizard
-New users complete a guided setup:
-1. Enter name
+New users complete a guided 5-step setup:
+1. Welcome screen
 2. Create a new household or join one with an invite code
-3. Set monthly income and budget limit
-4. (Optional) Set per-category spending goals
+3. Set monthly income
+4. Set monthly budget limit
+5. (Optional) Set per-category spending goals
 
 ### Shared Households
 Multiple members share one wallet. The household creator receives a shareable invite code (e.g. `HH-A3B9C2`).
@@ -183,19 +179,26 @@ Type a free-text Hebrew message — Gemini 2.5 Flash extracts the type, amount, 
 "קניתי אתמול בגדים ב-200"   → 💸 הוצאה · ₪200.00 · קניות (תאריך: אתמול)
 ```
 
-Multi-turn chat context: if the bot asks "כמה זה עלה?" after a missing-amount message, the next reply is combined with the original context automatically.
+### AI Image Parsing
+Tap the camera button in chat to photograph a receipt or invoice — Gemini Vision parses it into one or more transactions automatically.
 
 ### Transaction Management
 - Add/edit/delete transactions from the history screen
-- Manual entry form with category selector (including custom category input)
+- Manual entry form with category selector
 - Optional date override per transaction (defaults to today)
+
+### Recurring Transactions
+Define transactions that repeat automatically:
+- **Frequency**: Monthly (by day of month) or Weekly (by day of week)
+- On creation: a transaction for the **current period** is immediately logged
+- A cron job runs daily at **00:05** and logs any due recurring items, then advances their `nextRunAt`
+- Managed in Settings → "🔁 תשלומים קבועים"
 
 ### מסך הבית — Monthly + Weekly Summary
 - Budget gauge with percentage used
 - Top expense categories with progress bars vs. category budget goals
 - Daily expense charts: Line / Bar / Pie (preference saved per device)
 - Weekly summary with pro-rata budget tracking per category
-- Configurable weekly category filter (show/hide categories)
 
 ### Per-Category Budget Goals
 Set spending limits per category (e.g. ₪500 for food, ₪1000 for housing). Progress bars show current spend vs. goal in both monthly and weekly summaries.
@@ -218,15 +221,20 @@ Full dark and light theme support. Toggle in Settings. Preference is saved per d
 
 ```
 Household
-  id, name, inviteCode (unique), monthlyIncome, budgetLimit
+  id, inviteCode (unique), monthlyIncome, budgetLimit
 
 Member
-  id, phone (unique), firebaseUid (unique), name, householdId,
-  onboardingStep, pendingIncome, pushToken
+  id, email (unique), firebaseUid, name, householdId,
+  onboardingStep, pushToken
 
 Transaction
-  id, householdId, memberPhone, type (EXPENSE|INCOME),
+  id, householdId, memberEmail, type (EXPENSE|INCOME),
   amount, category, description, date (optional override), createdAt
+
+RecurringTransaction
+  id, householdId, memberEmail, type, amount, category, description,
+  frequency (WEEKLY|MONTHLY), dayOfWeek?, dayOfMonth?,
+  nextRunAt, isActive
 
 CategoryBudget
   id, householdId, category, budgetLimit
@@ -239,29 +247,43 @@ CategoryBudget
 
 All endpoints require an `Authorization: Bearer <firebase-id-token>` header.
 
+### Auth
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Firebase token → upsert Member |
+
 ### Transactions
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/transactions` | Log a transaction via free-text Hebrew message |
+| `POST` | `/api/transactions` | Log transactions via free-text Hebrew message (AI) |
 | `POST` | `/api/transactions/manual` | Log a transaction with structured data (no AI) |
+| `POST` | `/api/transactions/image` | Log transactions from a receipt image (AI vision) |
 | `GET` | `/api/transactions` | Get monthly transactions (`?month=&year=`) |
 | `PUT` | `/api/transactions/:id` | Update a transaction |
 | `DELETE` | `/api/transactions/:id` | Delete a transaction |
 
+### Recurring Transactions
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/recurring-transactions` | List active recurring transactions |
+| `POST` | `/api/recurring-transactions` | Create a recurring transaction |
+| `DELETE` | `/api/recurring-transactions/:id` | Soft-delete (deactivate) a recurring transaction |
+
 ### Households & Profile
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/households/me` | Get current member + household |
-| `POST` | `/api/households` | Create a new household |
-| `POST` | `/api/households/join` | Join a household with invite code |
+| `GET` | `/api/profile` | Get current member + household |
 | `PUT` | `/api/profile` | Update name or push token |
+| `GET` | `/api/household` | Get household settings |
+| `PUT` | `/api/household` | Update household (income, budget) |
+| `POST` | `/api/household/join` | Join a household with invite code |
 
 ### Reports
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/reports/monthly` | Monthly report (`?month=&year=`) |
 | `GET` | `/api/reports/weekly` | Current week summary |
-| `POST` | `/api/reports/monthly/trigger` | Manually trigger push notifications for all households (`?month=&year=`) |
+| `POST` | `/api/reports/monthly/trigger` | Manually trigger push notifications (`?month=&year=`) |
 
 ### Category Budgets
 | Method | Path | Description |
@@ -295,23 +317,23 @@ All endpoints require an `Authorization: Bearer <firebase-id-token>` header.
 | Decision | Rationale |
 |---|---|
 | **Expo + expo-router** | File-based routing, OTA updates, cross-platform |
-| **Firebase Phone Auth** | Passwordless login — just a phone number needed |
-| **WebView reCAPTCHA** | Firebase phone auth requires reCAPTCHA; compat SDK used for Android WebView compatibility |
+| **Firebase Email + Google Auth** | Familiar login flows; Google Sign-In available in native builds |
+| **Gemini 2.5 Flash** | Best available model on free tier; handles Hebrew text and receipt images |
 | **Express REST API** | Simple, stateless — easy to deploy anywhere |
 | **SQLite + Prisma** | Zero setup, single-file DB. Swap `provider = "postgresql"` + update `DATABASE_URL` to migrate to Postgres with no code changes |
-| **Gemini 2.5 Flash** | Best available model on this API key's free tier; Hebrew-only prompt for best accuracy |
 | **Expo Push Notifications** | Handles FCM/APNs complexity; requires EAS for production tokens |
-| **react-native-chart-kit** | Simple chart library with line/bar/pie support; saved preference per device |
+| **node-cron** | Lightweight scheduler for recurring transactions and monthly reports |
+| **react-native-chart-kit** | Simple chart library with line/bar/pie support; preference saved per device |
 
 ---
 
-## Viewing the Database
+## Common Issues & Fixes
 
-```bash
-npm run db:studio   # Opens Prisma Studio at http://localhost:5555
-```
-
-Prisma Studio provides a visual browser for all tables (Household, Member, Transaction, CategoryBudget) with inline edit support.
+| Symptom | Cause | Fix |
+|---|---|---|
+| "לא ניתן לנתח את התמונה" | Express body too large (413) | Already fixed: `express.json({ limit: '10mb' })` |
+| Prisma client doesn't know `recurringTransaction` | DLL lock prevented regeneration on Windows | Restart backend — it regenerates on start |
+| Google Sign-In crashes in Expo Go | Google blocks `exp://` redirect URIs | Expected — works only in native/standalone builds |
 
 ---
 
@@ -319,6 +341,5 @@ Prisma Studio provides a visual browser for all tables (Household, Member, Trans
 
 - **Push tokens**: `getExpoPushTokenAsync()` requires an EAS project. During local development this step is gracefully skipped.
 - **Gemini free tier**: 1,500 req/day, 15 req/min — sufficient for personal/household use.
-- **Firebase service account**: Never commit `*.json` service account files — add them to `.gitignore`.
-- **SQLite dev.db** is gitignored; re-run `npm run db:push` after cloning.
-- **legacy-peer-deps**: `mobile/.npmrc` sets `legacy-peer-deps=true` to resolve peer dependency conflicts with `react-native-chart-kit`.
+- **Firebase private key**: Set `FIREBASE_PRIVATE_KEY` with literal `\n` characters in `.env`; Node.js will parse them correctly.
+- **SQLite dev.db** is gitignored; re-run `npx prisma db push` after cloning.

@@ -1,10 +1,12 @@
 import { useState, useRef, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  StyleSheet, KeyboardAvoidingView, Platform, Keyboard,
+  StyleSheet, KeyboardAvoidingView, Platform, Keyboard, Alert,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
 import { api } from '../../lib/api';
 import { useTheme } from '../../lib/theme';
 import { ChatBubble, type Message } from '../../components/ChatBubble';
@@ -22,6 +24,7 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [manualVisible, setManualVisible] = useState(false);
+  const [imageLoading, setImageLoading] = useState(false);
   // Stores the previous user message when the bot asks a follow-up (e.g. "כמה זה עלה?")
   const [pendingContext, setPendingContext] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
@@ -42,6 +45,7 @@ export default function ChatScreen() {
     sendIcon: { color: '#fff', fontSize: 20, fontWeight: '700' },
     manualBtn: { width: 44, height: 44, backgroundColor: colors.inputBg, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.accent },
     manualIcon: { color: colors.accent, fontSize: 20 },
+    cameraBtn: { width: 44, height: 44, backgroundColor: colors.inputBg, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.accent },
   }), [colors]);
 
   const send = async () => {
@@ -58,7 +62,7 @@ export default function ChatScreen() {
     const fullMessage = pendingContext ? `${pendingContext} ${text}` : text;
 
     try {
-      const res = await api.post<{ type: string; message: string }>('/transactions', { message: fullMessage });
+      const res = await api.post<{ type: string; message: string; transactions?: unknown[] }>('/transactions', { message: fullMessage });
       const botMsg: Message = { id: `bot-${Date.now()}`, role: 'bot', text: res.message, at: new Date() };
       setMessages((prev) => [...prev, botMsg]);
 
@@ -100,6 +104,46 @@ export default function ChatScreen() {
     setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
   };
 
+  const pickAndSendImage = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('הרשאה נדרשת', 'יש לאשר גישה לגלריה בהגדרות.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.7,
+      base64: true,
+    });
+    if (result.canceled || !result.assets?.[0]?.base64) return;
+
+    const { base64, mimeType } = result.assets[0];
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', text: '📷 שולח תמונה לניתוח...', at: new Date() };
+    setMessages((prev) => [...prev, userMsg]);
+    setImageLoading(true);
+
+    try {
+      const res = await api.post<{ type: string; message: string; transactions?: unknown[] }>(
+        '/transactions/image',
+        { imageBase64: base64, mimeType: mimeType ?? 'image/jpeg' },
+      );
+      const botMsg: Message = { id: `bot-${Date.now()}`, role: 'bot', text: res.message, at: new Date() };
+      setMessages((prev) => [...prev, botMsg]);
+
+      if (res.type === 'SUCCESS') {
+        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        queryClient.invalidateQueries({ queryKey: ['report'] });
+        setTimeout(() => router.push('/(tabs)/'), 1500);
+      }
+    } catch {
+      const errMsg: Message = { id: `err-${Date.now()}`, role: 'bot', text: '❌ לא ניתן לנתח את התמונה.', at: new Date() };
+      setMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setImageLoading(false);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  };
+
   return (
     <KeyboardAvoidingView style={s.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={s.header}>
@@ -130,6 +174,9 @@ export default function ChatScreen() {
           onSubmitEditing={send}
           textAlign="right"
         />
+        <TouchableOpacity style={s.cameraBtn} onPress={pickAndSendImage} disabled={imageLoading}>
+          <Ionicons name="camera-outline" size={20} color={colors.accent} />
+        </TouchableOpacity>
         <TouchableOpacity style={s.manualBtn} onPress={() => setManualVisible(true)}>
           <Text style={s.manualIcon}>✎</Text>
         </TouchableOpacity>

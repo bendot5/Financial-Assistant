@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { createServer } from './api/server.js';
 import { startMonthlyReportJob } from './jobs/monthlyReport.js';
+import { startRecurringTransactionJob } from './jobs/recurringTransactions.js';
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -10,6 +11,7 @@ async function main() {
   console.log('═══════════════════════════════════════════');
 
   startMonthlyReportJob();
+  startRecurringTransactionJob();
 
   const app = createServer();
   app.listen(PORT, () => {

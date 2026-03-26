@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "ad82e179-4cd1-4e60-a2ec-94027abdc22c"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.bendot.financialassistantbackend",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

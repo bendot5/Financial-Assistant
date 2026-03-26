@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
  * Body: { name?, pushToken?, onboardingStep?, pendingIncome?, householdId? }
  */
 router.put('/', async (req, res) => {
-  const { uid, phone } = (req as AuthRequest).user;
+  const { uid, email } = (req as AuthRequest).user;
 
   const member = await getMemberByFirebaseUid(uid);
   if (!member) {
@@ -39,7 +39,7 @@ router.put('/', async (req, res) => {
     householdId?: string | null;
   };
 
-  const updated = await updateMember(phone, {
+  const updated = await updateMember(email, {
     name,
     pushToken,
     onboardingStep,

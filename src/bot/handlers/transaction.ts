@@ -38,7 +38,7 @@ export async function handleTransaction(
 
   await logTransaction({
     householdId,
-    memberPhone: phone,
+    memberEmail: phone,
     type: parsed.type,
     amount: parsed.amount,
     category: parsed.category,

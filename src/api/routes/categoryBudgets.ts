@@ -34,7 +34,7 @@ router.put('/', async (req, res) => {
 
 /** DELETE /api/category-budgets/:category — remove a category budget */
 router.delete('/:category', async (req, res) => {
-  const { uid } = (req as AuthRequest).user;
+  const { uid } = (req as unknown as AuthRequest).user;
   const member = await getMemberByFirebaseUid(uid);
   if (!member?.householdId) { res.status(403).json({ error: 'No household linked' }); return; }
 

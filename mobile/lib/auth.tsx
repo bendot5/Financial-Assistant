@@ -3,13 +3,6 @@ import { getAuth, onAuthStateChanged, signOut as firebaseSignOut, type User } fr
 import { api, type Member } from './api';
 import '../lib/firebase'; // ensure Firebase is initialised
 
-// ─── Confirmation result store ────────────────────────────────────────────────
-// Expo Router cannot pass complex objects as route params, so we store the
-// Firebase confirmation result (from signInWithPhoneNumber) in module scope.
-let _confirmation: { confirm: (code: string) => Promise<unknown> } | null = null;
-export const setConfirmation = (c: typeof _confirmation) => { _confirmation = c; };
-export const getConfirmation = () => _confirmation;
-
 // ─── Context ──────────────────────────────────────────────────────────────────
 
 interface AuthContextValue {
@@ -40,6 +33,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      // Sign out any cached phone-auth session (no longer supported)
+      if (user && !user.email) {
+        await firebaseSignOut(auth);
+        return; // onAuthStateChanged will fire again with null
+      }
       setFirebaseUser(user);
       if (user) {
         await verifyWithBackend(user);

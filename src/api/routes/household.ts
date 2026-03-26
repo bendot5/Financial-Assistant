@@ -30,7 +30,7 @@ router.get('/', async (req, res) => {
  * Body: { name?, monthlyIncome: number, budgetLimit: number }
  */
 router.post('/', async (req, res) => {
-  const { uid, phone } = (req as AuthRequest).user;
+  const { uid, email } = (req as AuthRequest).user;
   const member = await getMemberByFirebaseUid(uid);
   if (!member) { res.status(404).json({ error: 'Member not found' }); return; }
 
@@ -51,7 +51,7 @@ router.post('/', async (req, res) => {
     budgetLimit,
   });
 
-  await updateMember(phone, { householdId: household.id, onboardingStep: 'COMPLETE', pendingIncome: null });
+  await updateMember(email, { householdId: household.id, onboardingStep: 'COMPLETE', pendingIncome: null });
 
   res.status(201).json({ household });
 });
@@ -61,7 +61,7 @@ router.post('/', async (req, res) => {
  * Body: { inviteCode: string }
  */
 router.post('/join', async (req, res) => {
-  const { uid, phone } = (req as AuthRequest).user;
+  const { uid, email } = (req as AuthRequest).user;
   const member = await getMemberByFirebaseUid(uid);
   if (!member) { res.status(404).json({ error: 'Member not found' }); return; }
 
@@ -74,7 +74,7 @@ router.post('/join', async (req, res) => {
     return;
   }
 
-  await updateMember(phone, { householdId: household.id, onboardingStep: 'COMPLETE' });
+  await updateMember(email, { householdId: household.id, onboardingStep: 'COMPLETE' });
 
   const members = await getHouseholdMembers(household.id);
   res.json({ household, members });

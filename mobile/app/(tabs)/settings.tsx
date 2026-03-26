@@ -7,8 +7,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../lib/auth';
 import { useTheme } from '../../lib/theme';
-import { api, type CategoryBudget } from '../../lib/api';
+import { api, type CategoryBudget, type RecurringTransaction } from '../../lib/api';
 import { CATEGORIES } from '../../components/TransactionFormModal';
+import { RecurringTransactionModal } from '../../components/RecurringTransactionModal';
 
 export default function SettingsScreen() {
   const { member, signOut, refreshMember } = useAuth();
@@ -38,12 +39,19 @@ export default function SettingsScreen() {
   const [newCatBudgetAmount, setNewCatBudgetAmount] = useState('');
   const [addingCatBudget, setAddingCatBudget] = useState(false);
 
+  // Recurring transactions state
+  const [recurringItems, setRecurringItems] = useState<RecurringTransaction[]>([]);
+  const [recurringModalVisible, setRecurringModalVisible] = useState(false);
+
   const household = member?.household;
-  
+
   useEffect(() => {
     if (member?.householdId) {
       api.get<{ budgets: CategoryBudget[] }>('/category-budgets')
         .then((r) => setCatBudgets(r.budgets))
+        .catch(() => {});
+      api.get<{ recurringTransactions: RecurringTransaction[] }>('/recurring-transactions')
+        .then((r) => setRecurringItems(r.recurringTransactions))
         .catch(() => {});
     }
   }, [member?.householdId]);
@@ -177,6 +185,37 @@ export default function SettingsScreen() {
     ]);
   };
 
+  const saveRecurring = async (data: {
+    type: 'EXPENSE' | 'INCOME';
+    amount: number;
+    category: string;
+    description: string;
+    frequency: 'WEEKLY' | 'MONTHLY';
+    dayOfWeek?: number;
+    dayOfMonth?: number;
+  }) => {
+    await api.post('/recurring-transactions', data);
+    const r = await api.get<{ recurringTransactions: RecurringTransaction[] }>('/recurring-transactions');
+    setRecurringItems(r.recurringTransactions);
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['report'] });
+  };
+
+  const deleteRecurring = (id: string, description: string) => {
+    Alert.alert('מחיקת תשלום', `למחוק את "${description}"?`, [
+      { text: 'ביטול', style: 'cancel' },
+      {
+        text: 'מחק', style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.delete(`/recurring-transactions/${id}`);
+            setRecurringItems((prev) => prev.filter((r) => r.id !== id));
+          } catch { Alert.alert('שגיאה', 'לא ניתן למחוק.'); }
+        },
+      },
+    ]);
+  };
+
   const handleSignOut = () => {
     Alert.alert('התנתקות', 'האם אתה בטוח שברצונך להתנתק?', [
       { text: 'ביטול', style: 'cancel' },
@@ -185,6 +224,7 @@ export default function SettingsScreen() {
   };
 
   return (
+    <>
     <ScrollView style={s.container} contentContainerStyle={s.content}>
       <Text style={s.pageTitle}>הגדרות</Text>
 
@@ -238,8 +278,8 @@ export default function SettingsScreen() {
         <View style={s.divider} />
 
         <View style={s.fieldRow}>
-          <Text style={s.fieldLabel}>טלפון</Text>
-          <Text style={s.fieldValue}>{member?.phone ?? '—'}</Text>
+          <Text style={s.fieldLabel}>אימייל</Text>
+          <Text style={s.fieldValue}>{member?.email ?? '—'}</Text>
         </View>
       </View>
 
@@ -380,6 +420,44 @@ export default function SettingsScreen() {
         </>
       )}
 
+      {/* ─── Recurring transactions ─── */}
+      {household && (
+        <>
+          <Text style={s.sectionLabel}>🔁 תשלומים קבועים</Text>
+          <View style={s.card}>
+            {recurringItems.length === 0 && (
+              <Text style={s.joinHint}>לא הוגדרו תשלומים קבועים עדיין.</Text>
+            )}
+            {recurringItems.map((item) => (
+              <View key={item.id} style={[s.fieldRow, { marginBottom: 8 }]}>
+                <View style={s.valueRow}>
+                  <TouchableOpacity onPress={() => deleteRecurring(item.id, item.description)}>
+                    <Ionicons name="trash-outline" size={16} color={colors.expense} />
+                  </TouchableOpacity>
+                  <View style={{ alignItems: 'flex-end', flex: 1 }}>
+                    <Text style={s.fieldValue}>{item.description}</Text>
+                    <Text style={[s.fieldLabel, { marginTop: 2 }]}>
+                      {item.frequency === 'MONTHLY'
+                        ? `חודשי — יום ${item.dayOfMonth}`
+                        : `שבועי — ${['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'][item.dayOfWeek ?? 0]}`}
+                    </Text>
+                  </View>
+                  <Text style={[s.fieldValue, { color: item.type === 'EXPENSE' ? colors.expense : colors.income, marginLeft: 8 }]}>
+                    {item.type === 'EXPENSE' ? '-' : '+'}₪{item.amount.toFixed(0)}
+                  </Text>
+                </View>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={[s.joinBtn, { marginTop: recurringItems.length > 0 ? 8 : 0 }]}
+              onPress={() => setRecurringModalVisible(true)}
+            >
+              <Text style={s.joinBtnText}>+ הוסף תשלום קבוע</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
       {/* ─── Join household ─── */}
       <Text style={s.sectionLabel}>הצטרף למשק בית אחר</Text>
       <View style={s.card}>
@@ -399,5 +477,12 @@ export default function SettingsScreen() {
         <Text style={s.signOutText}>התנתק</Text>
       </TouchableOpacity>
     </ScrollView>
+
+    <RecurringTransactionModal
+      visible={recurringModalVisible}
+      onClose={() => setRecurringModalVisible(false)}
+      onSave={saveRecurring}
+    />
+    </>
   );
 }

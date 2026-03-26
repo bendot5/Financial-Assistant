@@ -13,15 +13,16 @@ datasource db {
 // ─── Household ───────────────────────────────────────────────────────────────
 // A shared "wallet" — one or more members (phones) track expenses together.
 model Household {
-  id               String           @id @default(cuid())
-  name             String?
-  inviteCode       String           @unique
-  monthlyIncome    Float            @default(0)
-  budgetLimit      Float            @default(0)
-  members          Member[]
-  transactions     Transaction[]
-  categoryBudgets  CategoryBudget[]
-  createdAt        DateTime         @default(now())
+  id                    String                 @id @default(cuid())
+  name                  String?
+  inviteCode            String                 @unique
+  monthlyIncome         Float                  @default(0)
+  budgetLimit           Float                  @default(0)
+  members               Member[]
+  transactions          Transaction[]
+  categoryBudgets       CategoryBudget[]
+  recurringTransactions RecurringTransaction[]
+  createdAt             DateTime               @default(now())
 }
 
 // ─── Member ──────────────────────────────────────────────────────────────────
@@ -30,7 +31,7 @@ model Household {
 //   WELCOME → INVITE_PROMPT → INCOME → BUDGET → COMPLETE
 model Member {
   id             String     @id @default(cuid())
-  phone          String     @unique
+  email          String     @unique
   firebaseUid    String?    @unique  // Firebase Auth UID — set on first login
   name           String?
   householdId    String?
@@ -48,12 +49,35 @@ model Transaction {
   id          String    @id @default(cuid())
   householdId String
   household   Household @relation(fields: [householdId], references: [id])
-  memberPhone String
+  memberEmail String
   type        String    // "EXPENSE" | "INCOME"
   amount      Float
   category    String
   description String
   date        DateTime? // User-specified date (overrides createdAt for display/reports)
+  createdAt   DateTime  @default(now())
+}
+
+// ─── RecurringTransaction ─────────────────────────────────────────────────────
+// A template for auto-generated periodic transactions (rent, subscriptions, etc.)
+// frequency: "WEEKLY" | "MONTHLY"
+// dayOfWeek:  0–6 (Sunday–Saturday), used when frequency = WEEKLY
+// dayOfMonth: 1–31, used when frequency = MONTHLY (clamped to last day if needed)
+// nextRunAt:  the next DateTime the cron job should fire this entry
+model RecurringTransaction {
+  id          String    @id @default(cuid())
+  householdId String
+  household   Household @relation(fields: [householdId], references: [id])
+  memberEmail String
+  type        String    // "EXPENSE" | "INCOME"
+  amount      Float
+  category    String
+  description String
+  frequency   String    // "WEEKLY" | "MONTHLY"
+  dayOfWeek   Int?      // 0 (Sun) – 6 (Sat), WEEKLY only
+  dayOfMonth  Int?      // 1–31, MONTHLY only
+  nextRunAt   DateTime
+  isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
 }
 

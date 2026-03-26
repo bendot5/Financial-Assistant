@@ -3,7 +3,7 @@ import { admin } from '../../lib/firebaseAdmin.js';
 
 export interface AuthUser {
   uid: string;
-  phone: string;
+  email: string;
 }
 
 // Extend Express Request so downstream route handlers get req.user typed
@@ -26,7 +26,7 @@ export async function verifyFirebaseToken(
     const decoded = await admin.auth().verifyIdToken(token);
     (req as AuthRequest).user = {
       uid: decoded.uid,
-      phone: decoded.phone_number ?? '',
+      email: decoded.email ?? '',
     };
     next();
   } catch {

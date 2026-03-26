@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { admin } from '../../lib/firebaseAdmin.js';
-import { upsertMemberByPhone } from '../../services/householdService.js';
+import { upsertMemberByEmail } from '../../services/householdService.js';
 
 const router = Router();
 
@@ -21,13 +21,13 @@ router.post('/verify', async (req, res) => {
     }
 
     const decoded = await admin.auth().verifyIdToken(idToken);
-    const phone = decoded.phone_number;
-    if (!phone) {
-      res.status(400).json({ error: 'Token does not contain a phone number' });
+    const email = decoded.email;
+    if (!email) {
+      res.status(400).json({ error: 'Token does not contain an email' });
       return;
     }
 
-    const { member, isNew } = await upsertMemberByPhone(phone, decoded.uid);
+    const { member, isNew } = await upsertMemberByEmail(email, decoded.uid);
     res.status(200).json({ member, isNew });
   } catch (err) {
     console.error('[Auth] /verify error:', err);

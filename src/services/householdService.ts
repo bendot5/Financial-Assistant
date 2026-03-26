@@ -8,22 +8,22 @@ function generateInviteCode(): string {
 
 // ─── Member queries ───────────────────────────────────────────────────────────
 
-export async function getMember(phone: string) {
+export async function getMember(email: string) {
   return prisma.member.findUnique({
-    where: { phone },
+    where: { email },
     include: { household: true },
   });
 }
 
-export async function createMember(phone: string) {
+export async function createMember(email: string) {
   return prisma.member.create({
-    data: { phone },
+    data: { email },
     include: { household: true },
   });
 }
 
 export async function updateMember(
-  phone: string,
+  email: string,
   data: {
     name?: string;
     householdId?: string | null;
@@ -33,7 +33,7 @@ export async function updateMember(
   },
 ) {
   return prisma.member.update({
-    where: { phone },
+    where: { email },
     data,
     include: { household: true },
   });
@@ -48,17 +48,17 @@ export async function getMemberByFirebaseUid(uid: string) {
 }
 
 /**
- * Creates a new member for the given phone + Firebase UID if they don't exist,
+ * Creates a new member for the given email + Firebase UID if they don't exist,
  * or links the Firebase UID to an existing member record.
  * Returns the member and whether they were just created.
  */
-export async function upsertMemberByPhone(phone: string, firebaseUid: string) {
-  const existing = await prisma.member.findUnique({ where: { phone } });
+export async function upsertMemberByEmail(email: string, firebaseUid: string) {
+  const existing = await prisma.member.findUnique({ where: { email } });
   const isNew = !existing;
 
   const member = await prisma.member.upsert({
-    where: { phone },
-    create: { phone, firebaseUid },
+    where: { email },
+    create: { email, firebaseUid },
     update: { firebaseUid },
     include: { household: true },
   });

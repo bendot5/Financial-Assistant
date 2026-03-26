@@ -43,7 +43,7 @@ export interface Household {
 
 export interface Member {
   id: string;
-  phone: string;
+  email: string;
   name: string | null;
   householdId: string | null;
   onboardingStep: string;
@@ -57,8 +57,22 @@ export interface Transaction {
   amount: number;
   category: string;
   description: string;
-  memberPhone: string;
+  memberEmail: string;
   date?: string | null;
+  createdAt: string;
+}
+
+export interface RecurringTransaction {
+  id: string;
+  type: 'EXPENSE' | 'INCOME';
+  amount: number;
+  category: string;
+  description: string;
+  frequency: 'WEEKLY' | 'MONTHLY';
+  dayOfWeek?: number | null;
+  dayOfMonth?: number | null;
+  nextRunAt: string;
+  isActive: boolean;
   createdAt: string;
 }
 

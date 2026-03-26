@@ -2,7 +2,7 @@ import { prisma } from '../db/prisma.js';
 
 export interface CreateTransactionInput {
   householdId: string;
-  memberPhone: string;
+  memberEmail: string;
   type: 'EXPENSE' | 'INCOME';
   amount: number;
   category: string;

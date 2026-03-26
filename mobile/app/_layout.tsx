@@ -26,7 +26,7 @@ function NavigationGuard() {
 
     if (!firebaseUser) {
       // Not logged in → go to phone screen
-      if (!inAuth) router.replace('/(auth)/phone');
+      if (!inAuth) router.replace('/(auth)/signin');
     } else if (member?.onboardingStep !== 'COMPLETE') {
       // Logged in but onboarding not finished
       if (!inOnboarding) router.replace('/(onboarding)/setup');
