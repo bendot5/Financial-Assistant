@@ -28,8 +28,10 @@ export default function SetupScreen() {
   };
 
   const saveIncome = () => {
-    const n = parseFloat(income);
-    if (isNaN(n) || n < 0) { Alert.alert('סכום לא תקין', 'הזן סכום תקין.'); return; }
+    if (income.trim() !== '') {
+      const n = parseFloat(income);
+      if (isNaN(n) || n < 0) { Alert.alert('סכום לא תקין', 'הזן סכום תקין.'); return; }
+    }
     setStep('budget');
   };
 

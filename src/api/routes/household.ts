@@ -40,7 +40,7 @@ router.post('/', async (req, res) => {
     name?: string;
   };
 
-  if (!monthlyIncome || !budgetLimit) {
+  if (monthlyIncome == null || !budgetLimit) {
     res.status(400).json({ error: 'monthlyIncome and budgetLimit are required' });
     return;
   }
