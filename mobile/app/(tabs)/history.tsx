@@ -6,6 +6,7 @@ import { api, type Transaction } from '../../lib/api';
 import { useTheme } from '../../lib/theme';
 import { TransactionCard } from '../../components/TransactionCard';
 import { TransactionFormModal } from '../../components/TransactionFormModal';
+import { ConfirmModal } from '../../components/ConfirmModal';
 
 export default function HistoryScreen() {
   const now = new Date();
@@ -13,6 +14,9 @@ export default function HistoryScreen() {
   const [year, setYear] = useState(now.getFullYear());
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | undefined>(undefined);
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string; message: string; confirmText: string; onConfirm: () => void;
+  } | null>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -58,23 +62,17 @@ export default function HistoryScreen() {
   };
 
   const handleDelete = (tx: Transaction) => {
-    Alert.alert(
-      'מחיקת פעולה',
-      `למחוק את "${tx.description}"?`,
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'מחק',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/transactions/${tx.id}`);
-              invalidate();
-            } catch { Alert.alert('שגיאה', 'לא ניתן למחוק. נסה שוב.'); }
-          },
-        },
-      ]
-    );
+    setConfirmModal({
+      title: 'מחיקת פעולה',
+      message: `למחוק את "${tx.description}"?`,
+      confirmText: 'מחק',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/transactions/${tx.id}`);
+          invalidate();
+        } catch { Alert.alert('שגיאה', 'לא ניתן למחוק. נסה שוב.'); }
+      },
+    });
   };
 
   const openAdd = () => { setEditingTx(undefined); setModalVisible(true); };
@@ -142,6 +140,15 @@ export default function HistoryScreen() {
         onClose={() => setModalVisible(false)}
         transaction={editingTx}
         onSave={editingTx ? handleEdit : handleAdd}
+      />
+      <ConfirmModal
+        visible={confirmModal !== null}
+        title={confirmModal?.title ?? ''}
+        message={confirmModal?.message ?? ''}
+        confirmText={confirmModal?.confirmText ?? 'אישור'}
+        destructive
+        onConfirm={() => { confirmModal?.onConfirm(); setConfirmModal(null); }}
+        onCancel={() => setConfirmModal(null)}
       />
     </View>
   );

@@ -9,7 +9,7 @@ import { api } from '../../lib/api';
 type Step = 'name' | 'route' | 'income' | 'budget' | 'invite';
 
 export default function SetupScreen() {
-  const { refreshMember } = useAuth();
+  const { refreshMember, signOut } = useAuth();
   const [step, setStep] = useState<Step>('name');
   const [name, setName] = useState('');
   const [income, setIncome] = useState('');
@@ -19,11 +19,17 @@ export default function SetupScreen() {
 
   const saveName = async () => {
     if (name.trim().length < 2) { Alert.alert('שם קצר מדי', 'הזן לפחות 2 תווים.'); return; }
+    console.log('[saveName] sending PUT /profile, name=', name.trim());
     setLoading(true);
     try {
-      await api.put('/profile', { name: name.trim(), onboardingStep: 'INVITE_PROMPT' });
+      const res = await api.put('/profile', { name: name.trim(), onboardingStep: 'INVITE_PROMPT' });
+      console.log('[saveName] PUT /profile success:', JSON.stringify(res));
       setStep('route');
-    } catch (e: unknown) { Alert.alert('שגיאה', e instanceof Error ? e.message : 'נכשל'); }
+      console.log('[saveName] step set to route');
+    } catch (e: unknown) {
+      console.error('[saveName] PUT /profile error:', e);
+      Alert.alert('שגיאה', e instanceof Error ? e.message : 'נכשל');
+    }
     finally { setLoading(false); }
   };
 
@@ -71,6 +77,7 @@ export default function SetupScreen() {
           <TextInput style={s.input} value={name} onChangeText={setName}
             placeholder="לדוגמה: בן" placeholderTextColor="#888" autoFocus textAlign="right" />
           <Btn label="המשך ←" onPress={saveName} loading={loading} />
+          <SecondaryBtn label="התנתק" onPress={signOut} />
         </View>
       )}
 

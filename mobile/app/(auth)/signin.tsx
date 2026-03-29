@@ -1,44 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
+  StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import {
   getAuth,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
-  signInWithCredential,
+  signInWithPopup,
 } from 'firebase/auth';
-import { useAuthRequest, makeRedirectUri, ResponseType } from 'expo-auth-session';
-import * as WebBrowser from 'expo-web-browser';
-import Constants from 'expo-constants';
 import '../../lib/firebase'; // ensure Firebase is initialised
 
-WebBrowser.maybeCompleteAuthSession();
-
-const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID ?? '';
-// Google Sign-In only works in native builds (not Expo Go) because
-// Google OAuth blocks exp:// redirect URIs.
-const isExpoGo = Constants.appOwnership === 'expo';
-
-const GOOGLE_DISCOVERY = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-};
-
 const FIREBASE_ERRORS: Record<string, string> = {
-  'auth/invalid-email': 'כתובת אימייל לא תקינה',
-  'auth/user-not-found': 'משתמש לא קיים',
-  'auth/wrong-password': 'סיסמה שגויה',
-  'auth/invalid-credential': 'אימייל או סיסמה שגויים',
-  'auth/email-already-in-use': 'האימייל כבר רשום',
-  'auth/weak-password': 'הסיסמה חייבת להכיל לפחות 6 תווים',
-  'auth/too-many-requests': 'יותר מדי ניסיונות — נסה שוב מאוחר יותר',
-  'auth/network-request-failed': 'בעיית רשת — בדוק חיבור לאינטרנט',
+  'auth/invalid-email': 'כתובת האימייל שהוזנה אינה תקינה',
+  'auth/user-not-found': 'לא נמצא חשבון עם אימייל זה — אולי טעית? או אולי עדיין לא נרשמת?',
+  'auth/wrong-password': 'הסיסמה שגויה — בדוק שוב ונסה מחדש',
+  'auth/invalid-credential': 'האימייל או הסיסמה שגויים — בדוק שוב ונסה מחדש',
+  'auth/email-already-in-use': 'האימייל הזה כבר רשום במערכת — לחץ על "יש לך חשבון? כניסה" כדי להתחבר',
+  'auth/weak-password': 'הסיסמה קצרה מדי — יש להזין לפחות 6 תווים',
+  'auth/too-many-requests': 'בוצעו יותר מדי ניסיונות כושלים — המתן מספר דקות ונסה שוב',
+  'auth/network-request-failed': 'בעיית חיבור לרשת — בדוק את חיבור האינטרנט שלך',
+  'auth/user-disabled': 'החשבון הזה הושבת — פנה לתמיכה',
+  'auth/operation-not-allowed': 'שיטת הכניסה הזו אינה מופעלת כרגע',
+  'auth/popup-closed-by-user': 'חלון הכניסה נסגר לפני השלמת הפעולה',
+  'auth/cancelled-popup-request': 'בקשת הכניסה בוטלה',
 };
 
 function getErrorMessage(code: string): string {
-  return FIREBASE_ERRORS[code] ?? 'אירעה שגיאה — נסה שוב';
+  return FIREBASE_ERRORS[code] ?? `אירעה שגיאה בלתי צפויה — נסה שוב (${code || 'unknown'})`;
 }
 
 export default function SignInScreen() {
@@ -48,41 +38,31 @@ export default function SignInScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const [request, response, promptAsync] = useAuthRequest(
-    {
-      clientId: GOOGLE_WEB_CLIENT_ID,
-      redirectUri: makeRedirectUri({ useProxy: true }),
-      responseType: ResponseType.IdToken,
-      scopes: ['openid', 'profile', 'email'],
-      usePKCE: false,
-    },
-    GOOGLE_DISCOVERY
-  );
-
-  useEffect(() => {
-    if (response?.type === 'success') {
-      const { id_token } = response.params;
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    setErrorMsg('');
+    try {
       const auth = getAuth();
-      const credential = GoogleAuthProvider.credential(id_token);
-      setGoogleLoading(true);
-      signInWithCredential(auth, credential).catch((err) => {
-        setGoogleLoading(false);
-        Alert.alert('שגיאה', getErrorMessage(err.code));
-      });
-    } else if (response?.type === 'error') {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      // onAuthStateChanged in AuthProvider handles navigation
+    } catch (err: unknown) {
+      const code = (err as { code?: string }).code ?? '';
+      setErrorMsg(getErrorMessage(code));
       setGoogleLoading(false);
-      Alert.alert('שגיאה', 'הכניסה עם Google נכשלה');
     }
-  }, [response]);
+  };
 
   const handleEmailAuth = async () => {
     const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
     if (!trimmedEmail || !trimmedPassword) {
-      Alert.alert('שגיאה', 'יש למלא אימייל וסיסמה');
+      setErrorMsg('יש למלא אימייל וסיסמה');
       return;
     }
+    setErrorMsg('');
     setLoading(true);
     const auth = getAuth();
     try {
@@ -94,7 +74,7 @@ export default function SignInScreen() {
       // onAuthStateChanged in AuthProvider handles the rest
     } catch (err: unknown) {
       const code = (err as { code?: string }).code ?? '';
-      Alert.alert('שגיאה', getErrorMessage(code));
+      setErrorMsg(getErrorMessage(code));
     } finally {
       setLoading(false);
     }
@@ -113,7 +93,7 @@ export default function SignInScreen() {
         <TextInput
           style={s.input}
           value={email}
-          onChangeText={setEmail}
+          onChangeText={(v) => { setEmail(v); setErrorMsg(''); }}
           placeholder="example@email.com"
           placeholderTextColor="#888"
           keyboardType="email-address"
@@ -129,7 +109,7 @@ export default function SignInScreen() {
           <TextInput
             style={[s.input, { flex: 1 }]}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(v) => { setPassword(v); setErrorMsg(''); }}
             placeholder="לפחות 6 תווים"
             placeholderTextColor="#888"
             secureTextEntry={!showPassword}
@@ -149,14 +129,15 @@ export default function SignInScreen() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => setIsRegister((v) => !v)} style={s.toggleBtn}>
+        {!!errorMsg && <Text style={s.errorMsg}>{errorMsg}</Text>}
+
+        <TouchableOpacity onPress={() => { setIsRegister((v) => !v); setErrorMsg(''); }} style={s.toggleBtn}>
           <Text style={s.toggleText}>
             {isRegister ? 'יש לך חשבון? כניסה' : 'אין לך חשבון? הרשמה'}
           </Text>
         </TouchableOpacity>
 
-        {!isExpoGo && (
-          <>
+        <>
             <View style={s.dividerRow}>
               <View style={s.divider} />
               <Text style={s.dividerText}>או</Text>
@@ -164,9 +145,9 @@ export default function SignInScreen() {
             </View>
 
             <TouchableOpacity
-              style={[s.googleBtn, (!request || googleLoading) && s.btnDisabled]}
-              onPress={() => promptAsync()}
-              disabled={!request || googleLoading}
+              style={[s.googleBtn, googleLoading && s.btnDisabled]}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
             >
               {googleLoading ? (
                 <ActivityIndicator color="#333" />
@@ -174,8 +155,7 @@ export default function SignInScreen() {
                 <Text style={s.googleBtnText}>🔵 Sign in with Google</Text>
               )}
             </TouchableOpacity>
-          </>
-        )}
+        </>
       </View>
     </KeyboardAvoidingView>
   );
@@ -203,4 +183,5 @@ const s = StyleSheet.create({
   dividerText: { color: '#888', fontSize: 12 },
   googleBtn: { backgroundColor: '#fff', borderRadius: 10, padding: 14, alignItems: 'center' },
   googleBtnText: { color: '#333', fontWeight: '600', fontSize: 15 },
+  errorMsg: { color: '#ff6b6b', fontSize: 13, textAlign: 'center', backgroundColor: '#2d1a1a', borderRadius: 8, padding: 10 },
 });

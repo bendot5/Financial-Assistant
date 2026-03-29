@@ -10,6 +10,7 @@ import { useTheme } from '../../lib/theme';
 import { api, type CategoryBudget, type RecurringTransaction } from '../../lib/api';
 import { CATEGORIES } from '../../components/TransactionFormModal';
 import { RecurringTransactionModal } from '../../components/RecurringTransactionModal';
+import { ConfirmModal } from '../../components/ConfirmModal';
 
 export default function SettingsScreen() {
   const { member, signOut, refreshMember } = useAuth();
@@ -42,6 +43,11 @@ export default function SettingsScreen() {
   // Recurring transactions state
   const [recurringItems, setRecurringItems] = useState<RecurringTransaction[]>([]);
   const [recurringModalVisible, setRecurringModalVisible] = useState(false);
+
+  // Confirm modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string; message: string; confirmText: string; onConfirm: () => void;
+  } | null>(null);
 
   const household = member?.household;
 
@@ -170,19 +176,18 @@ export default function SettingsScreen() {
   };
 
   const deleteCatBudget = (category: string) => {
-    Alert.alert('מחיקת יעד', `למחוק את יעד "${category}"?`, [
-      { text: 'ביטול', style: 'cancel' },
-      {
-        text: 'מחק', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/category-budgets/${encodeURIComponent(category)}`);
-            setCatBudgets((prev) => prev.filter((b) => b.category !== category));
-            queryClient.invalidateQueries({ queryKey: ['report'] });
-          } catch { Alert.alert('שגיאה', 'לא ניתן למחוק.'); }
-        },
+    setConfirmModal({
+      title: 'מחיקת יעד',
+      message: `למחוק את יעד "${category}"?`,
+      confirmText: 'מחק',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/category-budgets/${encodeURIComponent(category)}`);
+          setCatBudgets((prev) => prev.filter((b) => b.category !== category));
+          queryClient.invalidateQueries({ queryKey: ['report'] });
+        } catch { Alert.alert('שגיאה', 'לא ניתן למחוק.'); }
       },
-    ]);
+    });
   };
 
   const saveRecurring = async (data: {
@@ -202,25 +207,26 @@ export default function SettingsScreen() {
   };
 
   const deleteRecurring = (id: string, description: string) => {
-    Alert.alert('מחיקת תשלום', `למחוק את "${description}"?`, [
-      { text: 'ביטול', style: 'cancel' },
-      {
-        text: 'מחק', style: 'destructive',
-        onPress: async () => {
-          try {
-            await api.delete(`/recurring-transactions/${id}`);
-            setRecurringItems((prev) => prev.filter((r) => r.id !== id));
-          } catch { Alert.alert('שגיאה', 'לא ניתן למחוק.'); }
-        },
+    setConfirmModal({
+      title: 'מחיקת תשלום',
+      message: `למחוק את "${description}"?`,
+      confirmText: 'מחק',
+      onConfirm: async () => {
+        try {
+          await api.delete(`/recurring-transactions/${id}`);
+          setRecurringItems((prev) => prev.filter((r) => r.id !== id));
+        } catch { Alert.alert('שגיאה', 'לא ניתן למחוק.'); }
       },
-    ]);
+    });
   };
 
   const handleSignOut = () => {
-    Alert.alert('התנתקות', 'האם אתה בטוח שברצונך להתנתק?', [
-      { text: 'ביטול', style: 'cancel' },
-      { text: 'התנתק', style: 'destructive', onPress: () => signOut().catch(() => {}) },
-    ]);
+    setConfirmModal({
+      title: 'התנתקות',
+      message: 'האם אתה בטוח שברצונך להתנתק?',
+      confirmText: 'התנתק',
+      onConfirm: () => signOut().catch(() => {}),
+    });
   };
 
   return (
@@ -482,6 +488,15 @@ export default function SettingsScreen() {
       visible={recurringModalVisible}
       onClose={() => setRecurringModalVisible(false)}
       onSave={saveRecurring}
+    />
+    <ConfirmModal
+      visible={confirmModal !== null}
+      title={confirmModal?.title ?? ''}
+      message={confirmModal?.message ?? ''}
+      confirmText={confirmModal?.confirmText ?? 'אישור'}
+      destructive
+      onConfirm={() => { confirmModal?.onConfirm(); setConfirmModal(null); }}
+      onCancel={() => setConfirmModal(null)}
     />
     </>
   );

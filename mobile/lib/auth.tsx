@@ -56,7 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     const auth = getAuth();
     await firebaseSignOut(auth);
-    // onAuthStateChanged will clear member state automatically
   };
 
   return (

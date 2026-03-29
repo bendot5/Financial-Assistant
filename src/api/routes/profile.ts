@@ -24,12 +24,15 @@ router.get('/', async (req, res) => {
  */
 router.put('/', async (req, res) => {
   const { uid, email } = (req as AuthRequest).user;
+  console.log('[PUT /profile] uid=', uid, 'email=', email, 'body=', JSON.stringify(req.body));
 
   const member = await getMemberByFirebaseUid(uid);
   if (!member) {
+    console.error('[PUT /profile] member not found for uid=', uid);
     res.status(404).json({ error: 'Member not found' });
     return;
   }
+  console.log('[PUT /profile] found member id=', member.id);
 
   const { name, pushToken, onboardingStep, pendingIncome, householdId } = req.body as {
     name?: string;
@@ -46,6 +49,7 @@ router.put('/', async (req, res) => {
     pendingIncome,
     householdId,
   });
+  console.log('[PUT /profile] updated onboardingStep=', updated.onboardingStep);
 
   res.json({ member: updated });
 });

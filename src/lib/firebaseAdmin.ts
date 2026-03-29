@@ -3,7 +3,8 @@ import admin from 'firebase-admin';
 const projectId = process.env.FIREBASE_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 const rawKey = process.env.FIREBASE_PRIVATE_KEY ?? '';
-const privateKey = rawKey.includes('\\n') ? rawKey.replace(/\\n/g, '\n') : rawKey;
+// Normalize key regardless of how it was stored (.env with quotes, Railway, etc.)
+const privateKey = rawKey.replace(/\\n/g, '\n').trim();
 
 if (!projectId || !clientEmail || !rawKey) {
   throw new Error(
